@@ -9,6 +9,10 @@ on:
         description: "提供 MFi 配件身份的上游 release tag"
         required: true
         default: "v0.2.64"
+      java_version:
+        description: "构建用 JDK；docs/BUILD.md 要求 25，若镜像缺 25 可改 21"
+        required: true
+        default: "25"
 
 permissions:
   contents: read
@@ -16,12 +20,14 @@ permissions:
 jobs:
   build:
     name: assembleStandaloneDebug
-    runs-on: ubuntu-latest
+    # 固定 runner 版本。ubuntu-latest 会在 2026-10-19 迁移到 Ubuntu 26，
+    # 固定成 24.04 可避免那天之后构建环境突然变化。
+    runs-on: ubuntu-24.04
     timeout-minutes: 150
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Android SDK + NDK 占用很大，先腾出空间，避免构建中途磁盘写满。
       - name: Free disk space
@@ -29,25 +35,50 @@ jobs:
           sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
           df -h /
 
-      # docs/BUILD.md 要求 JDK 25（AGP 9.3 + Gradle 9.5）。
-      - name: Set up JDK 25
-        uses: actions/setup-java@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "25"
+          java-version: ${{ github.event.inputs.java_version }}
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # runner 镜像本来就预装了 Android SDK（ANDROID_HOME=/usr/local/lib/android/sdk），
+      # 所以这里不使用 android-actions/setup-android —— 它的 v3 声明 using: node20，
+      # 被 GitHub 强制跑在 node24 上会直接失败；与其等它升级，不如直接用预装 SDK。
+      - name: Configure Android SDK
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          if [ ! -d "$SDK" ]; then
+            echo "::error::Android SDK not found at $SDK"
+            exit 1
+          fi
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          # cmdline-tools 的版本目录名随镜像变化（latest / 12.0 / 7.0 …），动态定位。
+          SM="$(find "$SDK/cmdline-tools" -maxdepth 3 -name sdkmanager -type f 2>/dev/null | head -1)"
+          if [ -n "$SM" ]; then
+            echo "$(dirname "$SM")" >> "$GITHUB_PATH"
+            echo "sdkmanager 路径：$SM"
+          else
+            echo "::warning::cmdline-tools 下没找到 sdkmanager"
+          fi
+          [ -d "$SDK/platform-tools" ] && echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+          echo "SDK 根目录：$SDK"
+          ls "$SDK"
 
+      # 镜像里已有 build-tools 36.0.0 与 platform-tools；这里补 platform 37 和 NDK 25。
+      # NDK 版本必须与 shared/build.gradle 的 ndkVersion = '25.2.9519653' 一致，
+      # 镜像预装的是 27/29/30，不能用。
       - name: Install SDK packages
         run: |
           set -euo pipefail
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
           sdkmanager --install \
             "platforms;android-37.0" \
             "build-tools;36.0.0" \
             "platform-tools" \
             "ndk;25.2.9519653"
-          # 不导出 ANDROID_NDK_HOME：AGP 依据 shared/build.gradle 的 ndkVersion 选择工具链。
+          echo "--- 已安装的 NDK ---"
           ls "$ANDROID_HOME/ndk/"
 
       - name: Show toolchain
@@ -55,6 +86,7 @@ jobs:
           java -version
           python3 --version
           echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "runner=${ImageOS:-unknown}"
 
       # 关键一步：只改 AndroidMediaSink.kt，源码其余部分保持上游原样。
       - name: Apply audio-mode debounce patch
@@ -95,7 +127,7 @@ jobs:
           unzip -l "$APK" | grep -E "offline-mfi|libopus_microphone|lib/armeabi" | head -20
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: diplay-micfix-debug-apk
           path: mobile/build/outputs/apk/debug/mobile-debug.apk
