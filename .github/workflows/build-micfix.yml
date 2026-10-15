@@ -115,7 +115,12 @@ jobs:
       - name: Build standalone debug APK
         env:
           DIPLAY_AUTH_ASSETS_DIR: ${{ github.workspace }}/auth-assets
-        run: ./gradlew :mobile:assembleStandaloneDebug --no-daemon --stacktrace
+        run: |
+          set -euo pipefail
+          # 上游仓库把 gradlew 提交成了 100644（没有可执行位），
+          # 所以任何 clone / fork 下来都跑不了 ./gradlew，必须先补上执行位。
+          chmod +x ./gradlew
+          ./gradlew :mobile:assembleStandaloneDebug --no-daemon --stacktrace
 
       - name: Summarise the APK
         run: |
