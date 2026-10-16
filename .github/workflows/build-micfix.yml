@@ -46,24 +46,37 @@ jobs:
       # 被 GitHub 强制跑在 node24 上会直接失败；与其等它升级，不如直接用预装 SDK。
       - name: Configure Android SDK
         run: |
-          set -euo pipefail
-          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
-          if [ ! -d "$SDK" ]; then
-            echo "::error::Android SDK not found at $SDK"
+          set -uo pipefail
+          echo "=== 环境探查 ==="
+          echo "runner      : ${ImageOS:-unknown} ${ImageVersion:-}"
+          echo "ANDROID_HOME: ${ANDROID_HOME:-<未设置>}"
+          echo "SDK_ROOT    : ${ANDROID_SDK_ROOT:-<未设置>}"
+          ls -ld /usr/local/lib/android/sdk 2>/dev/null || echo "  /usr/local/lib/android/sdk 不存在"
+
+          SDK=""
+          for c in "$ANDROID_SDK_ROOT" "$ANDROID_HOME" /usr/local/lib/android/sdk "$HOME/android-sdk"; do
+            if [ -n "$c" ] && [ -d "$c" ]; then SDK="$c"; echo "  命中：$c"; break; fi
+          done
+          if [ -z "$SDK" ]; then
+            echo "::error::找不到 Android SDK。上面列出的候选路径都不存在。"
+            find / -maxdepth 4 -type d -name "android-sdk*" 2>/dev/null | head -10
             exit 1
           fi
+
+          echo "使用 SDK：$SDK"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
-          # cmdline-tools 的版本目录名随镜像变化（latest / 12.0 / 7.0 …），动态定位。
-          SM="$(find "$SDK/cmdline-tools" -maxdepth 3 -name sdkmanager -type f 2>/dev/null | head -1)"
-          if [ -n "$SM" ]; then
-            echo "$(dirname "$SM")" >> "$GITHUB_PATH"
-            echo "sdkmanager 路径：$SM"
-          else
-            echo "::warning::cmdline-tools 下没找到 sdkmanager"
+
+          SM="$(find "$SDK" -maxdepth 4 -name sdkmanager -type f 2>/dev/null | head -1)"
+          if [ -z "$SM" ]; then
+            echo "::error::SDK 里找不到 sdkmanager。目录结构如下（前两层）："
+            find "$SDK" -maxdepth 2 -type d | head -24
+            exit 1
           fi
+          echo "$(dirname "$SM")" >> "$GITHUB_PATH"
+          echo "sdkmanager：$SM"
           [ -d "$SDK/platform-tools" ] && echo "$SDK/platform-tools" >> "$GITHUB_PATH"
-          echo "SDK 根目录：$SDK"
+          echo "SDK 根目录内容："
           ls "$SDK"
 
       # 镜像里已有 build-tools 36.0.0 与 platform-tools；这里补 platform 37 和 NDK 25。
@@ -72,6 +85,13 @@ jobs:
       - name: Install SDK packages
         run: |
           set -euo pipefail
+          if ! command -v sdkmanager >/dev/null; then
+            echo "::error::sdkmanager 不在 PATH 上"
+            exit 1
+          fi
+          echo "sdkmanager: $(command -v sdkmanager)"
+          echo "sdkmanager 版本："
+          sdkmanager --version || true
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
           sdkmanager --install \
             "platforms;android-37.0" \
@@ -92,9 +112,20 @@ jobs:
       - name: Apply audio-mode debounce patch
         run: python3 patches/apply_audio_mode_debounce.py
 
-      # Gradle 的 prepareOpusSources 任务也会做这件事；这里先跑一次，网络问题能更早暴露。
-      - name: Fetch pinned libopus sources
-        run: python3 scripts/prepare-libopus.py
+      # 上游 shared/build.gradle 把 prepareOpusSources / prepareLwipSources 挂在
+      # 'generateJsonModel*' 和 'externalNativeBuild*' 前缀上，但 AGP 9.3 实际执行的是
+      # ':shared:configureNdkBuildDebug[abi]' —— 两个前缀都不匹配，所以这两个准备任务
+      # 从未被触发。而 shared/src/main/jni/Android.mk 会硬校验源码是否就位，
+      # 缺任何一个都会让 configure 阶段直接失败。这里手动准备，绕开上游的挂接缺陷。
+      - name: Fetch pinned native sources (libopus + lwIP)
+        run: |
+          set -euo pipefail
+          python3 scripts/prepare-libopus.py
+          python3 scripts/prepare-lwip.py
+          echo "--- 确认源码就位 ---"
+          test -f shared/src/main/jni/libopus/opus_sources.mk || { echo "::error::libopus 源码缺失"; exit 1; }
+          test -f shared/src/main/jni/lwip/src/include/lwip/opt.h || { echo "::error::lwip 源码缺失"; exit 1; }
+          echo "libopus 与 lwIP 源码均已就位"
 
       # CarPlay 需要 Apple MFi 配件身份。官方 APK 里带着一份，直接复用，
       # 免去把私钥上传到仓库。auth-assets 由 mobile/build.gradle.kts 自动识别。
@@ -112,15 +143,43 @@ jobs:
           test -s auth-assets/offline-mfi/identity.pk8
           test -s auth-assets/offline-mfi/certificate.p7b
 
-      - name: Build standalone debug APK
+      - name: Verify accessory identity
         env:
           DIPLAY_AUTH_ASSETS_DIR: ${{ github.workspace }}/auth-assets
         run: |
           set -euo pipefail
-          # 上游仓库把 gradlew 提交成了 100644（没有可执行位），
-          # 所以任何 clone / fork 下来都跑不了 ./gradlew，必须先补上执行位。
+          # 单独跑一次认证校验：这一步失败说明 MFi 材料或 shared 编译有问题，
+          # 与后面的打包失败区分开，便于定位。
           chmod +x ./gradlew
-          ./gradlew :mobile:assembleStandaloneDebug --no-daemon --stacktrace
+          ./gradlew :mobile:verifyStandaloneAuthentication --no-daemon --console=plain
+
+      - name: Build standalone debug APK
+        env:
+          DIPLAY_AUTH_ASSETS_DIR: ${{ github.workspace }}/auth-assets
+        run: |
+          chmod +x ./gradlew
+          set +e
+          ./gradlew :mobile:assembleStandaloneDebug --no-daemon --stacktrace \
+            --console=plain > /tmp/build.log 2>&1
+          code=$?
+          if [ "$code" -ne 0 ]; then
+            echo "::error::Gradle 退出码 $code"
+            echo "########## What went wrong（根因）##########"
+            sed -n '/What went wrong/,/^\* Try/p' /tmp/build.log | head -45
+            echo
+            echo "########## 所有 FAILED 的任务 ##########"
+            grep -n "FAILED" /tmp/build.log | head -25
+            echo
+            echo "########## 第一个 Caused by（最底层原因）##########"
+            grep -n -A 6 "Caused by" /tmp/build.log | head -30
+            echo
+            echo "########## 日志末尾 40 行 ##########"
+            tail -40 /tmp/build.log
+          else
+            echo "构建成功"
+            tail -12 /tmp/build.log
+          fi
+          exit "$code"
 
       - name: Summarise the APK
         run: |
