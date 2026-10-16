@@ -43,7 +43,19 @@ internal class LegacyExistingWifi(
                 .firstOrNull { it.isUp && !it.isLoopback && Collections.list(it.inetAddresses).contains(target) } }
             if (address != null && iface != null) {
                 val addresses = existingWifiHostAddresses(Collections.list(iface.inetAddresses), iface.index)
-                log("Existing Wi-Fi attached legacy iface=${iface.name} host=${address.hostAddress} channel=auto")
+                val info = wifi.connectionInfo
+                val bssid = info?.bssid
+                val apBssid = parseAccessPointAddress(bssid)
+                val frequency = runCatching {
+                    wifi.scanResults?.firstOrNull { it.BSSID.equals(bssid, ignoreCase = true) }?.frequency
+                }.getOrNull()
+                val channel = frequency?.let(::wifiFrequencyMhzToChannel) ?: 0
+                val band = when {
+                    frequency != null && frequency in 5150..5895 -> "5 GHz"
+                    frequency != null && frequency in 2412..2484 -> "2.4 GHz"
+                    else -> "Auto"
+                }
+                log("Existing Wi-Fi attached legacy iface=${iface.name} host=${address.hostAddress} channel=${if (channel > 0) channel else "auto"}")
                 monitor = Thread({
                     try {
                         while (!closed) {
@@ -57,8 +69,8 @@ internal class LegacyExistingWifi(
                 }, "diplay-legacy-wifi").apply { isDaemon = true; start() }
                 return WirelessHotspotInfo(ssid, passphrase,
                     if (passphrase.isEmpty()) Iap2WirelessSecurity.NONE else Iap2WirelessSecurity.WPA_WPA2,
-                    0, null, null, iface.name, address, "Auto", WirelessHotspotBackend.EXISTING_WIFI,
-                    hostAddresses = addresses)
+                    channel, frequency, bssid, iface.name, address, band, WirelessHotspotBackend.EXISTING_WIFI,
+                    hostAddresses = addresses, accessPointBssid = apBssid)
             }
             Thread.sleep(200)
         }

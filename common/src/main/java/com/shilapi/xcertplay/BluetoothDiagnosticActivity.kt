@@ -248,6 +248,13 @@ class BluetoothDiagnosticActivity : ComponentActivity() {
             val file = File(filesDir, "logs/bluetooth-diagnostic.log")
             file.parentFile?.mkdirs()
             file.writeText(text)
+            val diplayLog = File(filesDir, "logs/diplay.log")
+            if (diplayLog.exists() && diplayLog.length() <= 512 * 1024L) {
+                runCatching {
+                    val line = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.ROOT).format(java.util.Date()) + "  [BT-DIAG] " + safe + "\n"
+                    diplayLog.appendText(line)
+                }
+            }
             runOnUiThread { output.text = text }
         }
     }

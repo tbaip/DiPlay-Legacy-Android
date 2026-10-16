@@ -46,6 +46,22 @@ internal object LegacyConnectionProbe {
                 "hybridSupported=${hybrid.isSupported()} hybridEnabled=${hybrid.isEnabled()} " +
                 "hybridAdapter=${hybrid.getAdapterName()}"
         }.getOrElse { "Bluetooth probe failed=${it.javaClass.simpleName}" })
+        appendLine(runCatching {
+            val usb = context.applicationContext.getSystemService(Context.USB_SERVICE) as? UsbManager
+            val detector = com.shilapi.xcertplay.usbbt.UsbBtDongleDetector(context.applicationContext)
+            val dongles = if (usb != null) detector.findDongles(usb) else emptyList()
+            val desc = dongles.joinToString(" | ") {
+                "vid=0x${it.device.vendorId.toString(16)} pid=0x${it.device.productId.toString(16)} " +
+                    "${it.vendorLabel} permission=${usb?.hasPermission(it.device)}"
+            }
+            val adapterState = runCatching {
+                com.shilapi.xcertplay.bluetooth.CarPlayBluetoothManager
+                    .get(context.applicationContext).usbDongle?.diagnosticState()
+            }.getOrNull()
+            "USB-BT dongles=${dongles.size}" +
+                (if (desc.isEmpty()) "" else " [$desc]") +
+                (if (adapterState != null) " adapter=[$adapterState]" else " adapter=inactive")
+        }.getOrElse { "USB-BT dongle probe failed=${it.javaClass.simpleName}" })
     }
 
     fun log(context: Context) {

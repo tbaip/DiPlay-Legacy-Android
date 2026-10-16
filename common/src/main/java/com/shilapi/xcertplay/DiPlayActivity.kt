@@ -15,6 +15,8 @@ import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.BitmapFactory
@@ -48,6 +50,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.shilapi.xcertplay.adb.LocalAdb
 import com.shilapi.xcertplay.bluetooth.BluetoothAddressResolver
+import com.shilapi.xcertplay.bluetooth.CarPlayBluetoothManager
+import com.shilapi.xcertplay.usbbt.UsbBtDongleDetector
+import com.shilapi.xcertplay.usbbt.UsbBtSelfTest
 import com.shilapi.xcertplay.airplay.CarPlayClusterDisplay
 import com.shilapi.xcertplay.airplay.CarPlayDisplayScale
 import com.shilapi.xcertplay.airplay.ClusterTurnCardOverlay
@@ -82,6 +87,7 @@ internal enum class SettingsSection {
     CARPLAY_CONTROLS,
     WHEEL_KEYS,
     CONNECTION_SETUP,
+    USB_BLUETOOTH,
     DIAGNOSTICS,
     AUTOMATIC_CONNECTION,
     BYD_ADB,
@@ -103,6 +109,7 @@ internal object SettingsInformationArchitecture {
         SettingsCategory.OVERVIEW to setOf(SettingsSection.ABOUT, SettingsSection.LANGUAGE),
         SettingsCategory.CONNECTION to setOf(
             SettingsSection.CONNECTION_SETUP,
+            SettingsSection.USB_BLUETOOTH,
             SettingsSection.AUTOMATIC_CONNECTION,
             SettingsSection.BYD_ADB,
             SettingsSection.PERMISSIONS_AND_HELP,
@@ -1155,14 +1162,20 @@ class DiPlayActivity : ComponentActivity() {
         }
     }
 
-    // AndroidX doOnLayout uses View.isLaidOut (API 19) on its fast path. On API 17,
-    // defer to the platform layout observer instead, avoiding NoSuchMethodError.
     private fun View.afterLegacyLayout(action: () -> Unit) {
-        val observer = viewTreeObserver
-        if (!observer.isAlive) return
-        observer.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
-            override fun onGlobalLayout() {
-                if (observer.isAlive) observer.removeGlobalOnLayoutListener(this)
+        addOnLayoutChangeListener(object : View.OnLayoutChangeListener {
+            override fun onLayoutChange(
+                v: View?,
+                left: Int,
+                top: Int,
+                right: Int,
+                bottom: Int,
+                oldLeft: Int,
+                oldTop: Int,
+                oldRight: Int,
+                oldBottom: Int,
+            ) {
+                removeOnLayoutChangeListener(this)
                 action()
             }
         })
@@ -1293,6 +1306,8 @@ class DiPlayActivity : ComponentActivity() {
             )
             card.addView(label(getString(R.string.settings_car_bluetooth_mac_subtitle), 14, MUTED).apply { setPadding(0, dp(4), 0, 0) })
         }
+        filteredSection(content, SettingsSection.USB_BLUETOOTH,
+            getString(R.string.settings_usb_bluetooth_title), R.drawable.ic_dp_connection, ::usbBluetoothSettings)
         filteredSection(content, SettingsSection.DIAGNOSTICS,
             getString(R.string.diagnostics), R.drawable.ic_dp_diagnostics) { card ->
             // 查看日志按钮：在保存按钮上方，点击直接展示日志（无需先保存）。
@@ -1316,6 +1331,13 @@ class DiPlayActivity : ComponentActivity() {
                 }, "diplay-view-log").start()
             }
             card.addView(viewLogButton, matchButton(10, 60))
+            // 日志输出开关（issue #186）：关闭后不再收集会话日志，降低老车机负载；重启应用后生效。
+            toggle(
+                card,
+                getString(R.string.settings_log_output_title),
+                getString(R.string.settings_log_output_subtitle),
+                AirPlayPersistence.loadDebugLogsEnabled(this),
+            ) { AirPlayPersistence.saveDebugLogsEnabled(this, it) }
             exportButton = button(if (exportInProgress) getString(R.string.saving_report) else getString(R.string.save_diagnostic_report), false) {
                 exportDiagnostics()
             }.apply { isEnabled = !exportInProgress }
@@ -1438,6 +1460,11 @@ class DiPlayActivity : ComponentActivity() {
                 15 -> 0; 45 -> 2; 60 -> 3; else -> 1
             }) { AirPlayPersistence.saveFps(this, listOf(15, 30, 45, 60)[it]) }
             carPlayDockControl(card)
+            toggle(card, getString(R.string.settings_dock_auto_hide),
+                getString(R.string.settings_dock_auto_hide_description),
+                AirPlayPersistence.loadDockAutoHide(this)) {
+                AirPlayPersistence.saveDockAutoHide(this, it)
+            }
             addSystemBarControls(
                 hideTopBar = AirPlayPersistence.loadHideTopBar(this),
                 hideBottomBar = AirPlayPersistence.loadHideBottomBar(this),
@@ -1806,7 +1833,7 @@ class DiPlayActivity : ComponentActivity() {
     // An opted-in connection prepares the hotspot in the controller instead of stopping at this reminder.
     private fun carHotspotOff(): Boolean =
         AirPlayPersistence.loadWirelessHotspotMode(this) == WirelessHotspotMode.MANUAL &&
-            com.shilapi.xcertplay.network.CarHotspotStatus.isEnabled(this) == false &&
+            CarHotspotSettings.reportedOff(this, com.shilapi.xcertplay.network.CarHotspotStatus.isEnabled(this)) &&
             !(CarHotspotSettings.enabled(this) && CarHotspotTethering.permitted(this))
 
     private fun bydAdbSettings(parent: LinearLayout) {
@@ -2002,7 +2029,12 @@ class DiPlayActivity : ComponentActivity() {
         AlertDialog.Builder(this).setTitle(getString(R.string.car_hotspot_is_off))
             .setMessage(getString(R.string.msg_car_hotspot_connect, AirPlayPersistence.loadManualHotspotSsid(this)))
             .setPositiveButton(getString(R.string.open_car_settings)) { _, _ -> openCarWifiSettings() }
-            .setNeutralButton(getString(R.string.connect)) { _, _ -> connect(true) }
+            .setNeutralButton(getString(R.string.connect)) { _, _ ->
+                // Port of upstream #789: the driver sees the hotspot on; trust that over Android's
+                // report, or this dialog would come back on every tap.
+                CarHotspotSettings.setOffReportIgnored(this, true)
+                connect(true)
+            }
             .setNegativeButton(getString(R.string.cancel), null).show()
     }
 
@@ -4172,6 +4204,128 @@ class DiPlayActivity : ComponentActivity() {
             .show()
     }
 
+    private fun usbBluetoothSettings(card: LinearLayout) {
+        val appContext = applicationContext
+        val usbDongle = CarPlayBluetoothManager.get(appContext).usbDongle
+
+        card.addView(label(getString(R.string.settings_usb_bluetooth_subtitle), 14, MUTED))
+
+        val statusLabel = label("", 15, TEXT).apply {
+            setPadding(0, dp(8), 0, dp(4))
+        }
+        card.addView(statusLabel)
+
+        val actionLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        card.addView(actionLayout)
+
+        val selfTestResultLabel = label("", 13, MUTED).apply {
+            setPadding(0, dp(6), 0, 0)
+        }
+        card.addView(selfTestResultLabel)
+
+        fun refreshCard() {
+            if (isFinishing || isDestroyed) return
+            actionLayout.removeAllViews()
+            val status = usbDongle?.getStatus()
+            val dev = status?.device
+            val isSupported = status?.isSupported == true
+            val hasPerm = status?.hasPermission == true
+            val isEnabled = status?.isEnabled == true
+            val bdAddr = status?.localBdAddr
+
+            if (!isSupported || dev == null) {
+                statusLabel.text = getString(R.string.settings_usb_bluetooth_not_detected)
+                val testBtn = button(getString(R.string.settings_usb_bluetooth_self_test), false) {
+                    runUsbBtSelfTest(selfTestResultLabel, ::refreshCard)
+                }
+                actionLayout.addView(testBtn, matchButton(8, 60))
+                return
+            }
+
+            val labelText = getString(R.string.settings_usb_bluetooth_detected, status.vendorLabel ?: "USB Dongle")
+            val vidHex = "%04x".format(dev.vendorId)
+            val pidHex = "%04x".format(dev.productId)
+            statusLabel.text = "$labelText (VID:0x$vidHex PID:0x$pidHex)"
+
+            if (!hasPerm) {
+                val permNotice = label(getString(R.string.settings_usb_bluetooth_needs_permission), 14, WARNING).apply {
+                    setPadding(0, dp(2), 0, dp(4))
+                }
+                actionLayout.addView(permNotice)
+                val reqBtn = button(getString(R.string.settings_usb_bluetooth_request_permission), false) {
+                    val mgr = getSystemService(Context.USB_SERVICE) as? UsbManager
+                    if (mgr != null) {
+                        UsbBtDongleDetector(applicationContext).ensurePermission(
+                            mgr,
+                            UsbBtDongleDetector.Dongle(dev, status.vendorLabel ?: "", false)
+                        )
+                    }
+                }
+                actionLayout.addView(reqBtn, matchButton(8, 60))
+            } else {
+                if (isEnabled) {
+                    val runText = getString(
+                        R.string.settings_usb_bluetooth_running,
+                        bdAddr ?: "Unknown",
+                        "DiPlay-${bdAddr?.takeLast(5)?.replace(":", "") ?: "BT"}"
+                    )
+                    actionLayout.addView(label(runText, 14, READY).apply {
+                        setPadding(0, dp(2), 0, dp(4))
+                    })
+                    val stopBtn = button(getString(R.string.settings_usb_bluetooth_stop), false) {
+                        usbDongle.shutdown()
+                        refreshCard()
+                    }
+                    actionLayout.addView(stopBtn, matchButton(8, 60))
+                } else {
+                    val startBtn = button(getString(R.string.settings_usb_bluetooth_start), false) {
+                        Thread({
+                            usbDongle.enable()
+                            runOnUiThread { refreshCard() }
+                        }, "diplay-start-usbbt").start()
+                    }
+                    actionLayout.addView(startBtn, matchButton(8, 60))
+                }
+            }
+
+            val testBtn = button(getString(R.string.settings_usb_bluetooth_self_test), false) {
+                runUsbBtSelfTest(selfTestResultLabel, ::refreshCard)
+            }
+            actionLayout.addView(testBtn, matchButton(8, 60))
+        }
+
+        refreshCard()
+    }
+
+    private fun runUsbBtSelfTest(resultLabel: TextView, onComplete: () -> Unit) {
+        resultLabel.text = getString(R.string.settings_usb_bluetooth_testing)
+        Thread({
+            val report = UsbBtSelfTest.run(this)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val summary = if (report.ok) {
+                    "✅ ${report.message}\n${report.details.joinToString("\n")}"
+                } else {
+                    "❌ ${report.message}\n${report.details.joinToString("\n")}"
+                }
+                resultLabel.text = summary
+                val reportDev = report.device
+                if (report.needsPermission && reportDev != null) {
+                    val mgr = getSystemService(Context.USB_SERVICE) as? UsbManager
+                    if (mgr != null) {
+                        UsbBtDongleDetector(applicationContext).ensurePermission(
+                            mgr,
+                            UsbBtDongleDetector.Dongle(reportDev, report.vendorLabel ?: "", false)
+                        )
+                    }
+                }
+                onComplete()
+            }
+        }, "diplay-usbbt-selftest").start()
+    }
+
     private fun wirelessHelp() {
         AlertDialog.Builder(this).setTitle(getString(R.string.wireless_connection_help))
             .setMessage(getString(R.string.pair_your_iphone_with_the_car_s_bluetooth_keep_wi_fi_on_an))
@@ -4363,7 +4517,8 @@ class DiPlayActivity : ComponentActivity() {
         appendLine("--- Recent own-app process exits (Android 11+) ---")
         appendLine(ProcessExitDiagnostics.report(appContext))
         appendLine()
-        for (name in SessionLogFile.REPORT_NAMES) {
+        val logFiles = listOf("bluetooth-diagnostic.log") + SessionLogFile.REPORT_NAMES
+        for (name in logFiles) {
             val file = File(appContext.filesDir, "logs/$name")
             if (file.isFile) {
                 appendLine("--- $name ---")

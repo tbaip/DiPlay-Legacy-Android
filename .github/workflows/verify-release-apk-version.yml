@@ -17,6 +17,9 @@ jobs:
   verify-apk-version:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Ensure Android build tools
         shell: bash
         run: |
@@ -40,7 +43,7 @@ jobs:
           test "$(find release-apk -maxdepth 1 -type f -name '*.sha256' | wc -l)" -eq 1
           cd release-apk
           sha256sum --check *.sha256
-      - name: Verify APK version matches release tag
+      - name: Verify APK version and commit revision match release
         env:
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
         shell: bash
@@ -56,3 +59,25 @@ jobs:
             echo "::error::APK metadata does not match release"
             exit 1
           fi
+
+          # Full checkout history is needed to compare the APK revision with the tag.
+          git fetch origin tag "$TAG" --no-tags
+          tag_commit=$(git rev-parse "$TAG^{commit}")
+          echo "Release tag commit: $tag_commit"
+
+          if ! unzip -p "$apk" META-INF/version-control-info.textproto > proto.txt; then
+            echo "::error::APK is missing version-control-info.textproto"
+            exit 1
+          fi
+          apk_commit=$(sed -n 's/.*revision: "\([a-f0-9]*\)".*/\1/p' proto.txt | head -1)
+          if [[ ! "$apk_commit" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "::error::APK has no valid source revision"
+            exit 1
+          fi
+          echo "APK built commit:   $apk_commit"
+          git cat-file -e "$apk_commit^{commit}" || git fetch origin "$apk_commit"
+          # Git errors must fail verification rather than masquerade as an empty diff.
+          git diff --exit-code "$apk_commit" "$tag_commit" -- \
+            mobile/ shared/ common/ samples/ build.gradle.kts settings.gradle.kts gradle.properties gradle/
+          echo "APK commit revision verified (matches release source tree with 0 diffs)."
+

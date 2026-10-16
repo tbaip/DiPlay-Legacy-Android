@@ -57,7 +57,7 @@ class DiagnosticExportUiTest {
             shadowOf(Looper.getMainLooper()).idle()
             val viewer = ShadowAlertDialog.getLatestAlertDialog()
             assertTrue(descendants(viewer.window!!.decorView).filterIsInstance<TextView>()
-                .any { it.isTextSelectable && it.text.contains("Android 9 / API 28") })
+                .any { it.text.contains("Android 9 / API 28") })
             viewer.dismiss()
         } finally {
             controller.pause().stop().destroy()

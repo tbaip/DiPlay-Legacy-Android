@@ -53,4 +53,19 @@ class CarPlayConnectionDiagnosticLogTest {
         assertTrue(AsyncDiagnosticLog.awaitIdle(2_000))
         assertFalse(log.contains("private-token"))
     }
+
+    @Test fun wirelessStepsAreRecordedInSessionLogEvenWhenMenuIsOpen() {
+        val currentListener = activity.javaClass.getDeclaredMethod("createSessionListener", Int::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(activity, 2) as AirPlaySessionListener
+        activity.javaClass.getDeclaredField("menuOpen").apply { isAccessible = true }.set(activity, true)
+
+        currentListener.onDebugLog("WIRELESS-CHAIN [1/12] Bluetooth adapter supported")
+        currentListener.onDebugLog("WIRELESS-CHAIN [3/12] RFCOMM connecting to iPhone (attempt 1/2)")
+        currentListener.onDebugLog("WIRELESS-CHAIN [12/12] SUCCESS: AirPlay session active")
+
+        org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+        assertTrue(log.contains("WIRELESS-CHAIN [1/12]"))
+        assertTrue(log.contains("WIRELESS-CHAIN [3/12]"))
+        assertTrue(log.contains("WIRELESS-CHAIN [12/12]"))
+    }
 }

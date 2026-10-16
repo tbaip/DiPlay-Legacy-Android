@@ -1,12 +1,15 @@
 package com.shilapi.xcertplay
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Bundle
 import com.shilapi.xcertplay.compat.realSdkInt
 import android.provider.Settings
 import android.util.Log
@@ -18,6 +21,8 @@ import android.view.WindowManager
 /**
  * Issue #119: 悬浮小白点。部分车机无法在桌面添加快捷方式，
  * 开启后屏幕上显示一个可拖动的小圆点，点击即打开 DiPlay。
+ * 优化：仅在退出 CarPlay / DiPlay 回到车机桌面等后台状态时显示，
+ * 在当前 CarPlay / DiPlay 前台界面时不展示小白点；图标动态使用当前应用自身图标。
  */
 object FloatingDotOverlay {
     private const val TAG = "FloatingDot"
@@ -27,6 +32,42 @@ object FloatingDotOverlay {
 
     private var dotView: View? = null
     private var windowManager: WindowManager? = null
+    private var activityCount = 0
+    private var appRegistered = false
+
+    fun init(app: Application) {
+        if (appRegistered) return
+        appRegistered = true
+        app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityStarted(activity: Activity) {
+                activityCount++
+                updateVisibility(activity.applicationContext)
+            }
+            override fun onActivityResumed(activity: Activity) {
+                updateVisibility(activity.applicationContext)
+            }
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {
+                activityCount = (activityCount - 1).coerceAtLeast(0)
+                updateVisibility(activity.applicationContext)
+            }
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
+    }
+
+    private fun updateVisibility(context: Context) {
+        if (activityCount > 0) {
+            hide()
+        } else {
+            if (isEnabled(context) && permitted(context)) {
+                show(context)
+            } else {
+                hide()
+            }
+        }
+    }
 
     fun permitted(context: Context): Boolean {
         return if (realSdkInt() >= 23) {
@@ -40,17 +81,18 @@ object FloatingDotOverlay {
 
     fun setEnabled(context: Context, enabled: Boolean) {
         AirPlayPersistence.saveFloatingDot(context, enabled)
-        if (enabled) show(context.applicationContext)
-        else hide()
+        val app = context.applicationContext as? Application
+        if (app != null) init(app)
+        updateVisibility(context.applicationContext)
     }
 
     fun isEnabled(context: Context): Boolean = AirPlayPersistence.loadFloatingDot(context)
 
     /** App 启动时调用，按用户设置恢复小白点。 */
     fun restoreIfEnabled(context: Context) {
-        if (isEnabled(context) && permitted(context)) {
-            show(context.applicationContext)
-        }
+        val app = context.applicationContext as? Application
+        if (app != null) init(app)
+        updateVisibility(context.applicationContext)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -85,9 +127,18 @@ object FloatingDotOverlay {
             title = "DiPlay dot"
         }
 
-        // 直接用桌面 round 图标，和项目 UI 完全一致
+        // 动态使用当前应用的自身图标
         val dot = android.widget.ImageView(context).apply {
-            setImageResource(com.shilapi.xcertplay.shared.R.mipmap.ic_launcher_round)
+            val appIcon = try {
+                context.packageManager.getApplicationIcon(context.packageName)
+            } catch (_: Throwable) {
+                null
+            }
+            if (appIcon != null) {
+                setImageDrawable(appIcon)
+            } else {
+                setImageResource(com.shilapi.xcertplay.shared.R.mipmap.ic_launcher_round)
+            }
         }
 
         var downX = 0f

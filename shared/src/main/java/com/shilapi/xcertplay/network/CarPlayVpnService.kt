@@ -67,6 +67,7 @@ class CarPlayVpnService : VpnService() {
     private var serverSocket: ServerSocket? = null
     private var additionalServers: List<ServerSocket> = emptyList()
     @Volatile private var bridge: Ipv6NcmBridge? = null
+    @Volatile private var lwipBridge: LwipNcmBridge? = null
     private var tun: ParcelFileDescriptor? = null
     /**
      * Issue #145: the iPhone discovers the wired AirPlay endpoint via Bonjour on the
@@ -329,6 +330,93 @@ class CarPlayVpnService : VpnService() {
     }
 
     /**
+     * Starts the AirPlay listener on loopback (127.0.0.1) and relays traffic to/from USB CDC-NCM
+     * using the userspace lwIP protocol stack. No VpnService establish or Linux TUN required.
+     */
+    @Synchronized
+    fun attachUserspace(
+        ncm: NcmUsbBridge,
+        linkLocal: String,
+        hostMac: ByteArray,
+        config: AirPlayConfig,
+        identity: AirPlayIdentity,
+        pairings: PairingStore,
+        mfi: MfiAuthenticator?,
+        listener: AirPlaySessionListener,
+        media: AirPlayMediaHandler,
+    ): AttachResult {
+        if (active.get()) {
+            Log.i(TAG, "replacing stale attachment for userspace lwIP")
+            releaseLocked()
+        }
+        active.set(true)
+        val generation = ++attachGeneration
+        lastAttachFailure = null
+        var attachStage = "Userspace lwIP setup"
+        return try {
+            val address = InetAddress.getByName(linkLocal)
+            if (address !is Inet6Address || !address.isLinkLocalAddress) {
+                throw IllegalArgumentException("linkLocal must be a link-local IPv6 literal")
+            }
+            require(hostMac.size == 6) { "hostMac must be 6 bytes" }
+
+            val lwip = LwipNcmBridge(
+                ncm = ncm,
+                hostMac = hostMac,
+                hostLinkLocal = linkLocal,
+                onDebugLog = { line -> runCatching { listener.onDebugLog(line) } },
+                onError = { error -> onTransportError(generation, listener, error) },
+            )
+            attachStage = "NCM lwIP bridge startup"
+            lwip.start()
+            lwipBridge = lwip
+            runCatching { listener.onDebugLog("wired userspace lwIP bridge started") }
+
+            attachStage = "AirPlay loopback listener bind"
+            val loopback = InetAddress.getByName("127.0.0.1")
+            val wrappedListener = object : AirPlaySessionListener by listener {
+                override fun onPortBound(port: Int, isTcp: Boolean) {
+                    lwip.registerPort(port, isTcp)
+                    listener.onPortBound(port, isTcp)
+                }
+            }
+
+            startAirPlayServer(
+                generation,
+                AirPlayAttachment(loopback, config, identity, pairings, mfi, wrappedListener, media),
+                listenerReuseAddress = true,
+            )
+            val bound = boundPort() ?: config.port
+            lwip.registerPort(bound, isTcp = true)
+            runCatching { listener.onDebugLog("WIRED-CHAIN [13/16] AirPlay listener bound on 127.0.0.1 port=$bound (lwIP userspace)") }
+
+            attachStage = "wired mDNS unicast responder"
+            runCatching {
+                lwip.mdnsResponder = WiredMdnsResponder(
+                    deviceName = config.deviceName,
+                    hostLinkLocal = linkLocal,
+                    airPlayPort = bound,
+                    txtRecords = CarPlayBonjourProtocol.airPlayTxtRecords(config, identity),
+                )
+                runCatching {
+                    listener.onDebugLog("wired mDNS unicast responder installed on lwIP bridge port=$bound")
+                }
+            }.onFailure { error ->
+                Log.w(TAG, "wired mDNS unicast responder unavailable", error)
+                runCatching { listener.onDebugLog("wired mDNS responder failed: ${error.message}") }
+            }
+
+            AttachResult.Started
+        } catch (error: Exception) {
+            lastAttachFailure = "$attachStage: ${attachFailure(error)}"
+            Log.e(TAG, "wired userspace lwIP attach failed: $lastAttachFailure", error)
+            runCatching { listener.onDebugLog("wired userspace lwIP attach failed: $lastAttachFailure") }
+            releaseLocked()
+            AttachResult.Failed(error.message ?: error.javaClass.simpleName)
+        }
+    }
+
+    /**
      * Starts the AirPlay listener on the local-only Wi-Fi AP address without establishing a VPN or
      * NCM bridge.
      */
@@ -351,10 +439,19 @@ class CarPlayVpnService : VpnService() {
         active.set(true)
         val generation = ++attachGeneration
         return try {
+            // Same scope treatment as wired (P2-4): if the hotspot hands
+            // out an IPv6 link-local, bind it scoped to the WiFi interface
+            // so the kernel matches the iPhone's scoped SYN.
+            val scopedBind = if (bindAddress is java.net.Inet6Address && bindAddress.isLinkLocalAddress) {
+                AirPlaySocketBinder.scopedLinkLocal(bindAddress)
+            } else {
+                bindAddress
+            }
             startAirPlayServer(
                 generation,
-                AirPlayAttachment(bindAddress, config, identity, pairings, mfi, listener, media,
+                AirPlayAttachment(scopedBind, config, identity, pairings, mfi, listener, media,
                     additionalBindAddresses, listenerIdentity),
+                listenerReuseAddress = true,
             )
             AttachResult.Started
         } catch (error: Exception) {
@@ -378,6 +475,7 @@ class CarPlayVpnService : VpnService() {
 
     fun sendUnsolicitedNeighborAdvertisement(force: Boolean = false) {
         bridge?.sendUnsolicitedNeighborAdvertisement(force)
+        lwipBridge?.sendUnsolicitedNeighborAdvertisement(force)
     }
 
     /** Port the AirPlay listener actually bound, which may differ from the configured port. */
@@ -431,7 +529,11 @@ class CarPlayVpnService : VpnService() {
     fun tunTcpSnapshot(): String {
         val port = boundPort() ?: return "tun tcp6 snapshot unavailable: no bound port"
         val portHex = port.toString(16).uppercase().padStart(4, '0')
-        val injected = bridge?.injectedTcpPackets?.get() ?: -1
+        val injected = lwipBridge?.injectedTcpPackets?.get() ?: bridge?.injectedTcpPackets?.get() ?: -1
+        if (lwipBridge != null) {
+            val lwipSnap = lwipBridge?.tcpSnapshot() ?: "none"
+            return "userspace lwIP tcp port=$port injectedTcp=$injected $lwipSnap"
+        }
         var listen = 0
         var synRecv = 0
         var established = 0
@@ -480,9 +582,16 @@ class CarPlayVpnService : VpnService() {
                 Log.w(TAG, "AirPlay port $busy is in use; listening on $bound instead")
             })
         } else {
-            AirPlayPortSelector.bindAll(listOf(replacement.address) + replacement.additionalAddresses,
-                replacement.config.port, reuseAddress = listenerReuseAddress) { busy, bound ->
-                Log.w(TAG, "AirPlay port $busy is in use; listening on $bound instead")
+            try {
+                AirPlayPortSelector.bindAll(listOf(replacement.address) + replacement.additionalAddresses,
+                    replacement.config.port, reuseAddress = listenerReuseAddress) { busy, bound ->
+                    Log.w(TAG, "AirPlay port $busy is in use; listening on $bound instead")
+                }
+            } catch (error: Exception) {
+                Log.w(TAG, "Dual-family AirPlay port bind failed (${error.message}); falling back to primary address ${replacement.address.hostAddress}")
+                listOf(AirPlayPortSelector.bind(replacement.address, replacement.config.port, reuseAddress = listenerReuseAddress) { busy, bound ->
+                    Log.w(TAG, "AirPlay port $busy is in use; listening on $bound instead")
+                })
             }
         }
         val server = servers.first()
@@ -636,6 +745,8 @@ class CarPlayVpnService : VpnService() {
         closeSessionsLocked()
         bridge?.close()
         bridge = null
+        lwipBridge?.close()
+        lwipBridge = null
         runCatching { wiredBonjour?.close() }
         wiredBonjour = null
         // Keep ONLY the TUN open for reuse: on 4.4-framework ROMs the

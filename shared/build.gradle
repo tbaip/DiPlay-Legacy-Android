@@ -37,6 +37,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
         coreLibraryDesugaringEnabled true
     }
+    lint {
+        disable 'UnsafeIntentLaunch'
+    }
 }
 dependencies {
     coreLibraryDesugaring libs.desugar.jdk.libs
@@ -55,8 +58,13 @@ def prepareOpusSources = tasks.register('prepareOpusSources', Exec) {
     workingDir rootProject.projectDir
     commandLine (System.getProperty('os.name').toLowerCase().contains('windows') ? ['py', '-3', 'scripts/prepare-libopus.py'] : ['python3', 'scripts/prepare-libopus.py'])
 }
+def prepareLwipSources = tasks.register('prepareLwipSources', Exec) {
+    workingDir rootProject.projectDir
+    commandLine (System.getProperty('os.name').toLowerCase().contains('windows') ? ['py', '-3', 'scripts/prepare-lwip.py'] : ['python3', 'scripts/prepare-lwip.py'])
+}
 tasks.configureEach { task ->
     if (task.name.startsWith('generateJsonModel') || task.name.startsWith('externalNativeBuild')) {
         task.dependsOn(prepareOpusSources)
+        task.dependsOn(prepareLwipSources)
     }
 }

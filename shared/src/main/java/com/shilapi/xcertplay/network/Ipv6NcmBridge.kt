@@ -44,6 +44,9 @@ class Ipv6NcmBridge(
     @Volatile
     private var peerMac: ByteArray? = null
     private val hostLinkLocalBytes = InetAddress.getByName(hostLinkLocal).address
+    private val fe80_1_Bytes = byteArrayOf(
+        0xfe.toByte(), 0x80.toByte(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    )
     private val allNodesIpv6 = byteArrayOf(
         0xff.toByte(), 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01,
     )
@@ -130,27 +133,40 @@ class Ipv6NcmBridge(
                 val ipv6 = EthernetIpv6Codec.parseIpv6View(frame) ?: continue
                 peerMac = ipv6.sourceMac
 
-                if (EthernetIpv6Codec.isNeighborSolicitationFor(frame, ipv6.payloadOffset, ipv6.payloadLength, hostLinkLocalBytes)) {
-                    val peerIp = frame.copyOfRange(ipv6.payloadOffset + 8, ipv6.payloadOffset + 24)
-                    val isUnspecified = peerIp.all { it == 0.toByte() }
-                    val replyDstMac = if (isUnspecified) allNodesMac else ipv6.sourceMac
-                    val replyDstIp = if (isUnspecified) allNodesIpv6 else peerIp
-                    val naFrame = EthernetIpv6Codec.buildNeighborAdvertisement(
-                        hostMac = hostMac,
-                        peerMac = replyDstMac,
-                        hostIpv6 = hostLinkLocalBytes,
-                        peerIpv6 = replyDstIp,
-                        solicited = !isUnspecified,
-                    )
-                    ncm.send(naFrame, WRITE_TIMEOUT_MILLIS)
-                    val naMsg = "ncm replied with solicited neighbor advertisement to peer ${ipv6.sourceMac.macString()}"
-                    Log.i(TAG, naMsg)
-                    runCatching { onDebugLog(naMsg) }
-                    // This bridge owns NDP for hostLinkLocal. A TUN has no Ethernet
-                    // neighbour entry: forwarding an already-answered NS into Android's
-                    // layer-3 stack can trigger a second (or malformed) NA.
-                    // Keep all other IPv6 packets on the ordinary TUN path.
-                    continue
+                val ns = EthernetIpv6Codec.parseNeighborSolicitation(frame, ipv6.payloadOffset, ipv6.payloadLength)
+                if (ns != null) {
+                    val isDad = ns.sourceIp.all { it == 0.toByte() }
+                    val isHostAddress = ns.targetIp.contentEquals(hostLinkLocalBytes) ||
+                        ns.targetIp.contentEquals(fe80_1_Bytes)
+                    val isLinkLocal = (ns.targetIp[0].toInt() and 0xff) == 0xfe &&
+                        (ns.targetIp[1].toInt() and 0xc0) == 0x80
+                    val shouldAnswer = if (isDad) {
+                        isHostAddress
+                    } else {
+                        isHostAddress || (isLinkLocal && !ns.targetIp.contentEquals(ns.sourceIp))
+                    }
+
+                    if (shouldAnswer) {
+                        val replyDstMac = if (isDad) allNodesMac else (ns.sourceMac ?: ipv6.sourceMac)
+                        val replyDstIp = if (isDad) allNodesIpv6 else ns.sourceIp
+                        val naFrame = EthernetIpv6Codec.buildNeighborAdvertisement(
+                            hostMac = hostMac,
+                            peerMac = replyDstMac,
+                            hostIpv6 = ns.targetIp,
+                            peerIpv6 = replyDstIp,
+                            solicited = !isDad,
+                        )
+                        ncm.send(naFrame, WRITE_TIMEOUT_MILLIS)
+                        val targetStr = runCatching { InetAddress.getByAddress(ns.targetIp).hostAddress }.getOrDefault("unknown")
+                        val peerStr = runCatching { InetAddress.getByAddress(replyDstIp).hostAddress }.getOrDefault("unknown")
+                        val naMsg = "ncm replied ${if (isDad) "unsolicited" else "solicited"} NA for $targetStr to $peerStr (${replyDstMac.macString()})"
+                        Log.i(TAG, naMsg)
+                        runCatching { onDebugLog(naMsg) }
+                        continue
+                    } else {
+                        val targetStr = runCatching { InetAddress.getByAddress(ns.targetIp).hostAddress }.getOrDefault("unknown")
+                        Log.d(TAG, "ncm ignoring DAD NS for peer candidate $targetStr")
+                    }
                 }
 
                 // Issue #148: answer the iPhone's mDNS queries for the wired AirPlay
@@ -422,9 +438,27 @@ internal fun ByteArray.diagnosticSummary(offset: Int): String {
     if (payloadBytes < 44) return "bytes=$payloadBytes"
     val nextHeader = this[offset + 6].toInt() and 0xff
     val detail = when (nextHeader) {
-        6 -> " tcp=->${u16(offset + 42)}"
-        17 -> " udp=->${u16(offset + 42)}"
-        58 -> " icmp6=${this[offset + 40].toInt() and 0xff}"
+        6 -> {
+            val flags = if (payloadBytes >= 54) (this[offset + 40 + 13].toInt() and 0xff) else 0
+            val syn = (flags and 0x02) != 0
+            " tcp=->${u16(offset + 42)}${if (syn) "[SYN]" else ""}"
+        }
+        17 -> {
+            val dstPort = u16(offset + 42)
+            val mdnsTag = if (dstPort == 5353 && payloadBytes >= 48 + 4) {
+                val qr = (this[offset + 48 + 2].toInt() and 0x80) != 0
+                if (qr) "(mdns-resp)" else "(mdns-query)"
+            } else ""
+            " udp=->$dstPort$mdnsTag"
+        }
+        58 -> {
+            val icmpType = this[offset + 40].toInt() and 0xff
+            val tag = if (payloadBytes >= 64 && icmpType == 135) "(NS)"
+            else if (payloadBytes >= 48 && icmpType == 133) "(RS)"
+            else if (payloadBytes >= 64 && icmpType == 136) "(NA)"
+            else ""
+            " icmp6=$icmpType$tag"
+        }
         else -> ""
     }
     return "bytes=$payloadBytes next=$nextHeader$detail"

@@ -40,21 +40,29 @@ object CarHotspotTethering {
         val deadline = System.nanoTime() + timeoutMillis * 1_000_000L
         val observedAdbState = AtomicReference<Boolean?>()
         val startReflection: (ResultReceiver) -> Unit = { receiver ->
-            if (Build.VERSION.SDK_INT >= 37) throw NoSuchMethodException("Hidden tethering service is unavailable on API 37+")
+            if (realSdkInt() >= 37) throw NoSuchMethodException("Hidden tethering service is unavailable on API 37+")
             val conn = if (realSdkInt() >= Build.VERSION_CODES.M) {
                 context.getSystemService(ConnectivityManager::class.java)
             } else {
                 @Suppress("DEPRECATION")
                 context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             }
-            val service = ConnectivityManager::class.java.getDeclaredField("mService")
-                .apply { isAccessible = true }
-                .get(conn)
-                ?: throw NoSuchMethodException("Connectivity service unavailable")
-            service.javaClass.getMethod(
-                "startTethering", Int::class.javaPrimitiveType, ResultReceiver::class.java,
-                Boolean::class.javaPrimitiveType, String::class.java,
-            ).invoke(service, 0, receiver, false, context.packageName)
+            try {
+                val service = ConnectivityManager::class.java.getDeclaredField("mService")
+                    .apply { isAccessible = true }
+                    .get(conn)
+                    ?: throw NoSuchMethodException("Connectivity service unavailable")
+                service.javaClass.getMethod(
+                    "startTethering", Int::class.javaPrimitiveType, ResultReceiver::class.java,
+                    Boolean::class.javaPrimitiveType, String::class.java,
+                ).invoke(service, 0, receiver, false, context.packageName)
+            } catch (error: ReflectiveOperationException) {
+                // T3-class ROMs may lack the tethering service. Fall back to
+                // the pre-O WifiManager.setWifiApEnabled hidden API (P0-3).
+                // It exists on API 19; on newer ROMs it throws and the
+                // caller falls back to ADB as before.
+                startWifiApFallback(context, receiver)
+            }
         }
         val startAdb: () -> Boolean = {
             val client = AtomicReference<LocalAdb?>()
@@ -79,6 +87,29 @@ object CarHotspotTethering {
             startFallback = startAdb,
             start = startReflection,
         ).also { log("car hotspot auto-enable: ${it.diagnostic}") }
+    }
+
+    /**
+     * Fallback for ROMs without the tethering service: the pre-O hidden
+     * `WifiManager.setWifiApEnabled` API. Passing null config reuses the
+     * hotspot configuration the user already saved in system settings, so
+     * no SSID/password handling is needed here.
+     */
+    private fun startWifiApFallback(context: Context, receiver: ResultReceiver) {
+        val wifi = if (realSdkInt() >= Build.VERSION_CODES.M) {
+            context.getSystemService(android.net.wifi.WifiManager::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+        } ?: throw NoSuchMethodException("WifiManager unavailable")
+        val ok = android.net.wifi.WifiManager::class.java.getMethod(
+            "setWifiApEnabled",
+            android.net.wifi.WifiConfiguration::class.java,
+            Boolean::class.javaPrimitiveType,
+        ).invoke(wifi, null, true) as? Boolean ?: false
+        if (!ok) throw NoSuchMethodException("setWifiApEnabled returned false")
+        // 0 = no error; the caller polls isEnabled() until the AP comes up.
+        receiver.send(0, null)
     }
 
     /** An ADB observation supplements hidden platform status, but never overrides a current off state. */

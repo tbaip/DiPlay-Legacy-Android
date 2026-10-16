@@ -1,0 +1,78 @@
+package com.shilapi.xcertplay.usbbt
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class UsbBtPairingTest {
+
+    /** Build User_Confirmation_Request params: BD_ADDR(6) + u32 LE value. */
+    private fun confirmationParams(value: Long): ByteArray {
+        val addr = byteArrayOf(0x11, 0x22, 0x33, 0x44, 0x55, 0x66)
+        return addr + byteArrayOf(
+            (value and 0xFF).toByte(),
+            ((value shr 8) and 0xFF).toByte(),
+            ((value shr 16) and 0xFF).toByte(),
+            ((value shr 24) and 0xFF).toByte(),
+        )
+    }
+
+    @Test
+    fun extractSixDigitsTypical() {
+        // 1234567 % 1_000_000 = 234567
+        assertEquals(234567, UsbBtPairingAgent.extractSixDigitNumber(confirmationParams(1_234_567)))
+    }
+
+    @Test
+    fun extractSixDigitsSmallValue() {
+        assertEquals(42, UsbBtPairingAgent.extractSixDigitNumber(confirmationParams(42)))
+    }
+
+    @Test
+    fun extractSixDigitsMaxU32() {
+        // 0xFFFFFFFF % 1_000_000 = 294967295 % ... = 967295
+        assertEquals((0xFFFFFFFFL % 1_000_000).toInt(),
+            UsbBtPairingAgent.extractSixDigitNumber(confirmationParams(0xFFFFFFFFL)))
+    }
+
+    @Test
+    fun extractSixDigitsZero() {
+        assertEquals(0, UsbBtPairingAgent.extractSixDigitNumber(confirmationParams(0)))
+    }
+
+    @Test
+    fun extractRejectsShortParams() {
+        assertNull(UsbBtPairingAgent.extractSixDigitNumber(byteArrayOf(1, 2, 3)))
+        assertNull(UsbBtPairingAgent.extractSixDigitNumber(ByteArray(9)))
+    }
+
+    @Test
+    fun extractIgnoresExtraTrailingBytes() {
+        val params = confirmationParams(999) + byteArrayOf(0x7F, 0x7E)
+        assertEquals(999, UsbBtPairingAgent.extractSixDigitNumber(params))
+    }
+
+    @Test
+    fun sixDigitFormatting() {
+        // The dialog formats with %06d so small numbers keep leading zeros.
+        assertEquals("000042", "%06d".format(42))
+        assertEquals("234567", "%06d".format(234567))
+    }
+
+    @Test
+    fun ioCapabilityConstants() {
+        // DisplayYesNo for Numeric Comparison, NoInputNoOutput for Just Works.
+        assertEquals(0x01, HciProtocol.IO_CAP_DISPLAY_YES_NO)
+        assertEquals(0x03, HciProtocol.IO_CAP_NO_INPUT_NO_OUTPUT)
+    }
+
+    @Test
+    fun confirmationOpcodes() {
+        assertEquals(0x0400 or 0x2C, HciProtocol.OP_USER_CONFIRMATION_REQUEST_REPLY and 0xFFFF)
+        // Negative reply is the adjacent OCF.
+        assertEquals(
+            HciProtocol.OP_USER_CONFIRMATION_REQUEST_REPLY + 1,
+            HciProtocol.OP_USER_CONFIRMATION_REQUEST_NEGATIVE_REPLY,
+        )
+    }
+}

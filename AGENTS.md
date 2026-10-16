@@ -14,6 +14,13 @@ Run the CI command from `.github/workflows/android.yml` before you report a chan
 
 Set `ANDROID_HOME` or `local.properties` if Gradle cannot find the SDK.
 
+### Release Verification
+
+Before publishing any Release:
+1. Re-run `./gradlew :mobile:extractReleaseVersionControlInfo --rerun-tasks :mobile:assembleRelease` to guarantee that the generated APK's embedded `META-INF/version-control-info.textproto` points to the target release commit.
+2. Run `node scripts/verify_release_apk.js` to ensure the Release APK matches the current source code and SHA-256 with 0 diffs before pushing tags or creating GitHub releases.
+3. Keep SHA-256 checksum files organized under `checksums/` (e.g. `checksums/DiPlay-vX.Y.Z-legacy-release.apk.sha256`) instead of polluting the repository root.
+
 ## Adding or moving a setting
 
 The Settings screen is grouped by driver goal, not by implementation.

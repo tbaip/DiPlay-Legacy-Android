@@ -1,0 +1,193 @@
+{
+  "repository": "https://gitlab.com/kernel-firmware/linux-firmware",
+  "commit": "38c1a7096dfb2188f55f342b835f14c362c59409",
+  "license": "LICENCE.rtlwifi_firmware.txt",
+  "files": [
+    {
+      "path": "rtl_bt/rtl8723a_fw.bin",
+      "upstream_path": "rtl_bt/rtl8723a_fw.bin",
+      "bytes": 24548,
+      "sha256": "756951ee36e417c0714b00547a6175d5d5decbe1e4cf7585f211019150c7cd10"
+    },
+    {
+      "path": "rtl_bt/rtl8723b_fw.bin",
+      "upstream_path": "rtl_bt/rtl8723b_fw.bin",
+      "bytes": 45048,
+      "sha256": "c9c8a9f6ebd90b7449a7e4d38ee39952dc7cc47d6c1d054e42cfbb5e4d818853"
+    },
+    {
+      "path": "rtl_bt/rtl8723b_config.bin",
+      "upstream_path": "rtl_bt/rtl8723bs_config.bin",
+      "bytes": 64,
+      "sha256": "a6319ce368257b45820fcf11f8821b6eea7ddcc649f59a282498bf7a33210103"
+    },
+    {
+      "path": "rtl_bt/rtl8723d_fw.bin",
+      "upstream_path": "rtl_bt/rtl8723d_fw.bin",
+      "bytes": 52080,
+      "sha256": "6b70723b2db9b658cd9535fe36f1494b4494699e1ad07920c9356f8bd90d9263"
+    },
+    {
+      "path": "rtl_bt/rtl8723d_config.bin",
+      "upstream_path": "rtl_bt/rtl8821c_config.bin",
+      "bytes": 10,
+      "sha256": "292717b0610ce920f66b734c299d349ea59a4c4400044078d8fc65625f17e382"
+    },
+    {
+      "path": "rtl_bt/rtl8761a_fw.bin",
+      "upstream_path": "rtl_bt/rtl8761a_fw.bin",
+      "bytes": 74488,
+      "sha256": "581e5e81f5b51a29f475f8a276be95ad3210b3e3065987541c508e7f7a83a462"
+    },
+    {
+      "path": "rtl_bt/rtl8761a_config.bin",
+      "upstream_path": "rtl_bt/rtl8761bu_config.bin",
+      "bytes": 6,
+      "sha256": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f"
+    },
+    {
+      "path": "rtl_bt/rtl8761bu_fw.bin",
+      "upstream_path": "rtl_bt/rtl8761bu_fw.bin",
+      "bytes": 44484,
+      "sha256": "1d7a9597349ad89344fa16c1913d3e39e9a12e966e417ca16871bc79bbe59edb"
+    },
+    {
+      "path": "rtl_bt/rtl8761bu_config.bin",
+      "upstream_path": "rtl_bt/rtl8761bu_config.bin",
+      "bytes": 6,
+      "sha256": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f"
+    },
+    {
+      "path": "rtl_bt/rtl8761cu_fw.bin",
+      "upstream_path": "rtl_bt/rtl8761cu_fw.bin",
+      "bytes": 10296,
+      "sha256": "525bfa5ab9a3ed74b788f9ac494467c522a436c1bc5290ebcb05c7f920533c09"
+    },
+    {
+      "path": "rtl_bt/rtl8761cu_config.bin",
+      "upstream_path": "rtl_bt/rtl8761cu_config.bin",
+      "bytes": 11,
+      "sha256": "3142c2732470e4edcdb68edf58cc505b581e38d56b3ec09c64eddcb1d5099507"
+    },
+    {
+      "path": "rtl_bt/rtl8821a_fw.bin",
+      "upstream_path": "rtl_bt/rtl8821a_fw.bin",
+      "bytes": 37420,
+      "sha256": "3ed5077f8f02ff2b06be257691dc72061efac976cd2dc174057833624c820b9d"
+    },
+    {
+      "path": "rtl_bt/rtl8821a_config.bin",
+      "upstream_path": "rtl_bt/rtl8821c_config.bin",
+      "bytes": 10,
+      "sha256": "292717b0610ce920f66b734c299d349ea59a4c4400044078d8fc65625f17e382"
+    },
+    {
+      "path": "rtl_bt/rtl8821c_fw.bin",
+      "upstream_path": "rtl_bt/rtl8821c_fw.bin",
+      "bytes": 54636,
+      "sha256": "dfe7ef772d078ec09490c02190a32fcd40b3eaf3b040049d8930eb80e6d5743c"
+    },
+    {
+      "path": "rtl_bt/rtl8821c_config.bin",
+      "upstream_path": "rtl_bt/rtl8821c_config.bin",
+      "bytes": 10,
+      "sha256": "292717b0610ce920f66b734c299d349ea59a4c4400044078d8fc65625f17e382"
+    },
+    {
+      "path": "rtl_bt/rtl8822b_fw.bin",
+      "upstream_path": "rtl_bt/rtl8822b_fw.bin",
+      "bytes": 51176,
+      "sha256": "eecef2c3b2ff03c3a41292a93a25eca6f4ec38eb4a7491a3651b530be89a04fc"
+    },
+    {
+      "path": "rtl_bt/rtl8822b_config.bin",
+      "upstream_path": "rtl_bt/rtl8822b_config.bin",
+      "bytes": 14,
+      "sha256": "ea082136d5285655372e3805cd50d961bd7d42085c6fc1058a115a7e844df9c1"
+    },
+    {
+      "path": "rtl_bt/rtl8822cu_fw.bin",
+      "upstream_path": "rtl_bt/rtl8822cu_fw.bin",
+      "bytes": 37327,
+      "sha256": "bb8b1221b62749baebfa3e60271d6d90b1db5e3a480e3255be82c9fb58fe9577"
+    },
+    {
+      "path": "rtl_bt/rtl8822cu_config.bin",
+      "upstream_path": "rtl_bt/rtl8761bu_config.bin",
+      "bytes": 6,
+      "sha256": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f"
+    },
+    {
+      "path": "rtl_bt/rtl8852au_fw.bin",
+      "upstream_path": "rtl_bt/rtl8852au_fw.bin",
+      "bytes": 63352,
+      "sha256": "fb52f72e986d4c96dbf7263650d3766abcbcf10c0a4f23a065ba2c388b19c125"
+    },
+    {
+      "path": "rtl_bt/rtl8852au_config.bin",
+      "upstream_path": "rtl_bt/rtl8761bu_config.bin",
+      "bytes": 6,
+      "sha256": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f"
+    },
+    {
+      "path": "rtl_bt/rtl8852bu_fw.bin",
+      "upstream_path": "rtl_bt/rtl8852bu_fw.bin",
+      "bytes": 129733,
+      "sha256": "c2b0d34a4ff8a8ea136993f0dc4ba657522d84231b4094c2a53cda39afc91c57"
+    },
+    {
+      "path": "rtl_bt/rtl8852bu_config.bin",
+      "upstream_path": "rtl_bt/rtl8761bu_config.bin",
+      "bytes": 6,
+      "sha256": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f"
+    },
+    {
+      "path": "rtl_bt/rtl8852cu_fw_v2.bin",
+      "upstream_path": "rtl_bt/rtl8852cu_fw_v2.bin",
+      "bytes": 112953,
+      "sha256": "d1314df53b8f4282f9db57a727ba77c180bc6fd05bf2c306e960326a4ef48660"
+    },
+    {
+      "path": "rtl_bt/rtl8852cu_config.bin",
+      "upstream_path": "rtl_bt/rtl8761bu_config.bin",
+      "bytes": 6,
+      "sha256": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f"
+    },
+    {
+      "path": "rtl_bt/rtl8851bu_fw.bin",
+      "upstream_path": "rtl_bt/rtl8851bu_fw.bin",
+      "bytes": 49760,
+      "sha256": "7fcf88c00b2548a5ff157102a35722db5e4be655dab1ce8d9bddb6df85f88f24"
+    },
+    {
+      "path": "rtl_bt/rtl8851bu_config.bin",
+      "upstream_path": "rtl_bt/rtl8761bu_config.bin",
+      "bytes": 6,
+      "sha256": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f"
+    },
+    {
+      "path": "rtl_bt/rtl8922au_fw.bin",
+      "upstream_path": "rtl_bt/rtl8922au_fw.bin",
+      "bytes": 71360,
+      "sha256": "112290ca9dc3985034f572594812f0deb8530dd031686461b55cac43a1c35a79"
+    },
+    {
+      "path": "rtl_bt/rtl8922au_config.bin",
+      "upstream_path": "rtl_bt/rtl8922au_config.bin",
+      "bytes": 6,
+      "sha256": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f"
+    },
+    {
+      "path": "rtl_bt/rtl8852btu_fw.bin",
+      "upstream_path": "rtl_bt/rtl8852btu_fw.bin",
+      "bytes": 128140,
+      "sha256": "bd162fd3b70e805cf7a8098f22f4ddf5d89da58fafff97d87da1a1e2e0cbeb80"
+    },
+    {
+      "path": "rtl_bt/rtl8852btu_config.bin",
+      "upstream_path": "rtl_bt/rtl8761bu_config.bin",
+      "bytes": 6,
+      "sha256": "6c28a3f07c6a30ed208c4b64862a23f02b7d93543ea980edd24df16bab45095f"
+    }
+  ]
+}

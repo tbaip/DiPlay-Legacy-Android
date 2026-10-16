@@ -666,6 +666,8 @@
     <string name="carplay_dock_automatic">自動</string>
     <string name="carplay_dock_bottom">底部</string>
     <string name="carplay_dock_driver_side">駕駛側</string>
+    <string name="settings_dock_auto_hide">自動隱藏側邊欄</string>
+    <string name="settings_dock_auto_hide_description">全螢幕顯示右側應用區域，從螢幕左側邊緣向右滑動即可呼出應用側邊欄</string>
     <string name="carplay_dock_hint">CarPlay 顯示應用程式、時鐘與狀態的位置。在「駕駛側」和「底部」之間切換會立即生效；「自動」由 iPhone 決定，重新連線後生效。</string>
     <string name="carplay_rotation">旋轉螢幕時同步旋轉 CarPlay，無須重新連線</string>
     <string name="carplay_rotation_description">適用於螢幕可旋轉的車機。CarPlay 會接收包含橫向和直向畫面的方形影像，旋轉螢幕時可直接重繪，無須重新連線。較大的方形影像可能增加影片處理負擔並降低流暢度，尤其在大螢幕上選擇「較清晰」時。若很少旋轉螢幕，關閉此選項可能更合適。自訂安全區域不適用於方形影像。下次連線時生效。</string>
@@ -719,6 +721,8 @@
     <string name="settings_car_bluetooth_mac_dialog_message">輸入車機真實藍牙 MAC 位址（例如 AA:BB:CC:DD:EE:FF）。可在 iPhone「設定 → 藍牙 → (i)」或車機藍牙設定中檢視。</string>
     <string name="settings_car_bluetooth_mac_clear">清除 / 自動探測</string>
     <string name="settings_bluetooth_diagnostic">藍牙診斷</string>
+    <string name="settings_log_output_title">日誌輸出</string>
+    <string name="settings_log_output_subtitle">關閉可降低老車機負載，重新啟動應用後生效；需要定位問題時再開啟。</string>
     <string name="settings_car_bluetooth_mac_invalid">請輸入有效的 12 位十六進位 MAC 位址。</string>
     <string name="report_no_usb_drive">未偵測到可寫入的USB隨身碟。請連接USB隨身碟後重試，或將報告儲存至車機。</string>
     <string name="report_auto_save_locations">自動儲存至所有可寫入位置</string>
@@ -727,4 +731,15 @@
     <string name="report_usb_copy_paths">其他儲存位置：\n%1$s</string>
     <string name="settings_harman_fullscreen_experimental">Harman 車機全螢幕（實驗性）</string>
     <string name="settings_harman_fullscreen_experimental_description">讓 CarPlay 佔用受支援 Harman 車機的原廠側欄區域。下次開啟 CarPlay 視窗時生效；其他韌體可能顯示異常。</string>
+    <string name="settings_usb_bluetooth_title">外置 USB 藍牙</string>
+    <string name="settings_usb_bluetooth_subtitle">直接驅動外置 USB 藍牙適配器（支援綠聯 CM591/CM390、Realtek、炬芯 ATS2851 等），用於無線 CarPlay 數據通道。</string>
+    <string name="settings_usb_bluetooth_not_detected">未檢測到外置 USB 藍牙適配器 — 請插入相容的 USB 藍牙裝置。</string>
+    <string name="settings_usb_bluetooth_detected">已識別: %1$s</string>
+    <string name="settings_usb_bluetooth_needs_permission">未取得 USB 存取權限 — 點擊請求授權</string>
+    <string name="settings_usb_bluetooth_request_permission">授予 USB 權限</string>
+    <string name="settings_usb_bluetooth_start">啟動外置藍牙服務與廣播配對</string>
+    <string name="settings_usb_bluetooth_stop">停止外置藍牙服務</string>
+    <string name="settings_usb_bluetooth_running">運行中 · 本地 MAC: %1$s · 廣播名稱: %2$s</string>
+    <string name="settings_usb_bluetooth_self_test">自檢外置藍牙硬體與通訊</string>
+    <string name="settings_usb_bluetooth_testing">正在自檢外置藍牙…</string>
 </resources>

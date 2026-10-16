@@ -153,6 +153,19 @@ class IphoneUsbHost(
             parseAttachedDevice(it)?.let(onAttached)
         }
 
+    /** Returns the detached device if it matches an iPhone identity; null for other peripherals (e.g. dashcam). */
+    fun parseDetachedDevice(intent: Intent): UsbDevice? {
+        if (intent.action != UsbManager.ACTION_USB_DEVICE_DETACHED) return null
+        val device = intent.usbDevice() ?: return null
+        return device.takeIf { matcher.matches(it.vendorId, it.productId) }
+    }
+
+    /** Register once for this host instance and close the returned handle to unregister it. */
+    fun registerDetachReceiver(onDetached: (UsbDevice) -> Unit): Closeable =
+        registerReceiver(IntentFilter(UsbManager.ACTION_USB_DEVICE_DETACHED)) {
+            parseDetachedDevice(it)?.let(onDetached)
+        }
+
     /**
      * Sends the LIVI-evidenced vendor request then closes the connection before re-enumeration.
      * The callback is invoked from [executor].
@@ -388,7 +401,7 @@ class IphoneUsbHost(
         val deadline = SystemClock.elapsedRealtime() + REENUMERATION_REAPPEAR_TIMEOUT_MILLIS
         while (true) {
             usbManager.deviceList.values.firstOrNull {
-                it.vendorId == stale.vendorId && it.productId == stale.productId
+                it.vendorId == stale.vendorId && (it.productId == stale.productId || matcher.matches(it.vendorId, it.productId))
             }?.let { return it }
             if (SystemClock.elapsedRealtime() >= deadline) return null
             try {

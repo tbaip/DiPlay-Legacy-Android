@@ -35,7 +35,7 @@ class AirPlaySocketBinderTest {
     @Test fun exhaustedFallbackIsBoundedAndIncludesTheFailingStage() {
         val created = mutableListOf<FakeSocket>()
         val error = assertThrows(IOException::class.java) {
-            AirPlaySocketBinder.bindEphemeral(
+            AirPlaySocketBinder.bindEphemeral<FakeSocket>(
                 "AirPlay control", address,
                 { FakeSocket().also(created::add) },
                 { _, _ -> throw BindException("EADDRINUSE") },
@@ -49,7 +49,7 @@ class AirPlaySocketBinderTest {
     @Test fun permissionOrAddressErrorsAreNotMisreportedAsPortConflicts() {
         val created = mutableListOf<FakeSocket>()
         val error = assertThrows(IOException::class.java) {
-            AirPlaySocketBinder.bindEphemeral(
+            AirPlaySocketBinder.bindEphemeral<FakeSocket>(
                 "AirPlay audio", address,
                 { FakeSocket().also(created::add) },
                 { _, _ -> throw BindException("EADDRNOTAVAIL") },

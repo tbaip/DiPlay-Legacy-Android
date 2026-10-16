@@ -122,26 +122,21 @@ class Iap2LinkChannel private constructor(
             }
         }
 
-        var failure = closeUnderlyingOnce()
-        if (failure != null) {
-            synchronized(lock) {
-                terminalFailure = combineFailures(terminalFailure, failure)
-                lock.notifyAll()
-            }
-        }
+        var closeFailure = closeUnderlyingOnce()
         try {
             worker.join(CLOSE_JOIN_MILLIS)
         } catch (interrupted: InterruptedException) {
             Thread.currentThread().interrupt()
-            failure = combineFailures(failure, interrupted)
+            closeFailure = combineFailures(closeFailure, interrupted)
         }
         if (worker.isAlive) {
-            failure = combineFailures(failure, IOException("iAP2 link worker did not stop after close"))
+            closeFailure = combineFailures(closeFailure, IOException("iAP2 link worker did not stop after close"))
         }
-        synchronized(lock) {
-            failure = combineFailures(failure, terminalFailure)
+        val finalFailure = synchronized(lock) {
+            terminalFailure = combineFailures(terminalFailure, closeFailure)
+            terminalFailure
         }
-        if (failure != null) throw failure
+        if (finalFailure != null) throw finalFailure
     }
 
     private fun runPump() {
@@ -388,8 +383,29 @@ class Iap2LinkChannel private constructor(
 
     private fun combineFailures(first: Throwable?, second: Throwable?): Throwable? {
         if (first == null) return second
-        if (second != null && second !== first) first.addSuppressed(second)
+        if (second == null || second === first) return first
+        if (!hasCycle(first, second)) {
+            first.addSuppressed(second)
+        }
         return first
+    }
+
+    private fun hasCycle(first: Throwable, second: Throwable): Boolean {
+        if (first === second) return true
+        val seen = HashSet<Throwable>()
+        val queue = ArrayDeque<Throwable>()
+        queue.add(second)
+        while (queue.isNotEmpty()) {
+            val curr = queue.removeFirst()
+            if (!seen.add(curr)) continue
+            if (curr === first) return true
+            curr.cause?.let { queue.add(it) }
+            val suppressed = runCatching { curr.suppressed }.getOrNull()
+            if (suppressed != null) {
+                for (s in suppressed) queue.add(s)
+            }
+        }
+        return false
     }
 
     companion object {

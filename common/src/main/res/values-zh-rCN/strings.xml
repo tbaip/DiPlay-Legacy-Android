@@ -388,6 +388,8 @@
     <string name="use_usage_content_type_routing_instead_of_stream_type">使用 usage / content-type 路由代替流类型</string>
     <string name="use_your_last_connection_type_and_selected_iphone">使用上次的连接方式和已选 iPhone。</string>
     <string name="vpn_consent_was_denied">VPN 授权被拒绝</string>
+    <string name="vpn_consent_denied_retry_hint">有线 CarPlay 需要 VPN 权限来建立本地数据通道。请点"重新授权"，在系统弹窗中选择允许。</string>
+    <string name="vpn_consent_retry">重新授权</string>
     <string name="floating_dot">悬浮小白点</string>
     <string name="floating_dot_description">在屏幕上显示可拖动的小白点，点击打开 DiPlay（适用于无法添加桌面快捷方式的车机）</string>
     <string name="vpn_consent_launch_failed">VPN 授权窗口不可用，正在尝试直接连接</string>
@@ -669,6 +671,8 @@
     <string name="carplay_dock_automatic">自动</string>
     <string name="carplay_dock_driver_side">驾驶员一侧</string>
     <string name="carplay_dock_bottom">底部</string>
+    <string name="settings_dock_auto_hide">自动隐藏侧边栏</string>
+    <string name="settings_dock_auto_hide_description">全屏显示右侧应用区域，从屏幕左侧边缘向右滑动即可呼出应用边栏</string>
     <string name="carplay_dock_hint">CarPlay 显示应用、时钟和状态的位置。在“驾驶员一侧”和“底部”之间切换立即生效；“自动”由 iPhone 决定，重新连接后生效。</string>
     <string name="split_screen_areas">分屏中的 CarPlay</string>
     <string name="split_screen_areas_description">车机以分屏显示 DiPlay 时，CarPlay 会按该窗口重新绘制，而不是缩小并留黑边；返回全屏也无需重新连接。首次使用时会记住窗口大小，下次连接起画面完全贴合。程序栏设为“自动”时，CarPlay 会把它放在底部。下次连接时生效。</string>
@@ -724,6 +728,8 @@
     <string name="settings_car_bluetooth_mac_dialog_message">输入车机真实蓝牙 MAC 地址（例如 AA:BB:CC:DD:EE:FF）。可在 iPhone「设置 → 蓝牙 → (i)」或车机蓝牙设置中查看。</string>
     <string name="settings_car_bluetooth_mac_clear">清除 / 自动探测</string>
     <string name="settings_bluetooth_diagnostic">蓝牙诊断</string>
+    <string name="settings_log_output_title">日志输出</string>
+    <string name="settings_log_output_subtitle">关闭可降低老车机负载，重启应用后生效；需要定位问题时再打开。</string>
     <string name="settings_car_bluetooth_mac_invalid">请输入有效的 12 位十六进制 MAC 地址。</string>
     <string name="report_no_usb_drive">未检测到可写入的U盘。请连接U盘后重试，或将报告保存到车机。</string>
     <string name="report_auto_save_locations">自动保存至所有可写位置</string>
@@ -732,4 +738,19 @@
     <string name="report_usb_copy_paths">另外保存到：\n%1$s</string>
     <string name="settings_harman_fullscreen_experimental">哈曼车机全屏（实验性）</string>
     <string name="settings_harman_fullscreen_experimental_description">让 CarPlay 占用受支持哈曼车机的原厂侧栏区域。下次打开 CarPlay 窗口时生效；其他固件可能显示异常。</string>
+    <string name="usb_bt_dongle_status">USB 蓝牙 dongle</string>
+    <string name="usb_bt_dongle_connected">USB 蓝牙 dongle 已连接（%1$s）</string>
+    <string name="usb_bt_dongle_not_found">未发现 USB 蓝牙 dongle——请插入一个</string>
+    <string name="usb_bt_dongle_permission_needed">点击授权 USB 蓝牙 dongle 的 USB 权限</string>
+    <string name="settings_usb_bluetooth_title">外置 USB 蓝牙</string>
+    <string name="settings_usb_bluetooth_subtitle">直接驱动外置 USB 蓝牙适配器（支持绿联 CM591/CM390、Realtek、炬芯 ATS2851 等），用于无线 CarPlay 数据通道。</string>
+    <string name="settings_usb_bluetooth_not_detected">未检测到外置 USB 蓝牙适配器 — 请插入兼容的 USB 蓝牙设备。</string>
+    <string name="settings_usb_bluetooth_detected">已识别: %1$s</string>
+    <string name="settings_usb_bluetooth_needs_permission">未获取 USB 访问权限 — 点击请求授权</string>
+    <string name="settings_usb_bluetooth_request_permission">授予 USB 权限</string>
+    <string name="settings_usb_bluetooth_start">启动外置蓝牙服务与广播配对</string>
+    <string name="settings_usb_bluetooth_stop">停止外置蓝牙服务</string>
+    <string name="settings_usb_bluetooth_running">运行中 · 本地 MAC: %1$s · 广播名称: %2$s</string>
+    <string name="settings_usb_bluetooth_self_test">自检外置蓝牙硬件与通讯</string>
+    <string name="settings_usb_bluetooth_testing">正在自检外置蓝牙…</string>
 </resources>

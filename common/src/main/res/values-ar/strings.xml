@@ -605,6 +605,8 @@
     <string name="carplay_dock_automatic">تلقائي</string>
     <string name="carplay_dock_driver_side">جهة السائق</string>
     <string name="carplay_dock_bottom">في الأسفل</string>
+    <string name="settings_dock_auto_hide">إخفاء شريط التطبيقات تلقائيًا</string>
+    <string name="settings_dock_auto_hide_description">عرض منطقة التطبيق بملء الشاشة، اسحب من الحافة لإظهار شريط التطبيقات</string>
     <string name="carplay_dock_hint">مكان عرض CarPlay لتطبيقاته والساعة والحالة. التبديل بين «جهة السائق» و«في الأسفل» فوري؛ أما «تلقائي» فيترك الاختيار لجهاز iPhone ويُطبَّق بعد إعادة الاتصال.</string>
     <string name="split_screen_areas">CarPlay في الشاشة المقسومة</string>
     <string name="split_screen_areas_description">عندما تعرض الوحدة DiPlay في شاشة مقسومة، يعيد CarPlay الرسم لتلك النافذة بدل أن يصغر مع أشرطة سوداء، ويعود إلى ملء الشاشة دون إعادة اتصال. يُحفظ حجم النافذة في المرة الأولى، فتطابق الصورة تمامًا من الاتصال التالي. إذا كان شريط التطبيقات على «تلقائي» يضعه CarPlay في الأسفل. يُطبَّق عند الاتصال التالي.</string>
@@ -659,7 +661,20 @@
     <string name="settings_car_bluetooth_mac_dialog_message">أدخل عنوان MAC لبلوتوث السيارة (مثل AA:BB:CC:DD:EE:FF). ستجده في iPhone الإعدادات ← بلوتوث ← (i) أو إعدادات السيارة.</string>
     <string name="settings_car_bluetooth_mac_clear">تلقائي / مسح</string>
     <string name="settings_bluetooth_diagnostic">تشخيص البلوتوث</string>
+    <string name="settings_log_output_title">إخراج السجل</string>
+    <string name="settings_log_output_subtitle">أوقفه لتقليل الحمل على الوحدات الرئيسية القديمة. يسري مفعوله بعد إعادة تشغيل التطبيق؛ أعد تفعيله عند الحاجة إلى تشخيص مشكلة.</string>
     <string name="settings_car_bluetooth_mac_invalid">يرجى إدخال عنوان MAC سداسي عشري صالح من 12 خانة.</string>
     <string name="settings_harman_fullscreen_experimental">ملء شاشة Harman (تجريبي)</string>
     <string name="settings_harman_fullscreen_experimental_description">يتيح لـ CarPlay شغل منطقة اللوحة الجانبية الأصلية في وحدات Harman المدعومة. يُطبّق عند فتح نافذة CarPlay التالية؛ وقد تظهر أخطاء على برامج ثابتة أخرى.</string>
+    <string name="settings_usb_bluetooth_title">محول بلوتوث USB خارجي</string>
+    <string name="settings_usb_bluetooth_subtitle">مكدس أجهزة مباشر لمحوّلات USB بلوتوث الخارجية (مثل UGREEN CM591/CM390 وRealtek وActions ATS2851) لتشغيل CarPlay اللاسلكي.</string>
+    <string name="settings_usb_bluetooth_not_detected">لم يتم اكتشاف محول بلوتوث USB خارجي — يرجى توصيل محول متوافق.</string>
+    <string name="settings_usb_bluetooth_detected">تم الاكتشاف: %1$s</string>
+    <string name="settings_usb_bluetooth_needs_permission">إذن USB مطلوب — انقر لطلب الوصول</string>
+    <string name="settings_usb_bluetooth_request_permission">منح إذن USB</string>
+    <string name="settings_usb_bluetooth_start">بدء الخدمة وبث الاقتران</string>
+    <string name="settings_usb_bluetooth_stop">إيقاف بلوتوث USB</string>
+    <string name="settings_usb_bluetooth_running">قيد التشغيل · MAC: %1$s · الاسم: %2$s</string>
+    <string name="settings_usb_bluetooth_self_test">تشغيل الفحص الذاتي للأجهزة</string>
+    <string name="settings_usb_bluetooth_testing">جاري الفحص الذاتي…</string>
 </resources>

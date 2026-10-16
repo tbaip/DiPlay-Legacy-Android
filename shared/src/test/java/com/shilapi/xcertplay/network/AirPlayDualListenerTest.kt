@@ -50,4 +50,13 @@ class AirPlayDualListenerTest {
             addresses.forEach { address -> ServerSocket(port, 50, address).use { assertTrue(it.isBound) } }
         }
     }
+
+    @Test fun bindAllRespectsReuseAddress() {
+        val servers = AirPlayPortSelector.bindAll(addresses, 0, reuseAddress = true)
+        try {
+            assertTrue(servers.all { it.reuseAddress })
+        } finally {
+            servers.forEach { it.close() }
+        }
+    }
 }

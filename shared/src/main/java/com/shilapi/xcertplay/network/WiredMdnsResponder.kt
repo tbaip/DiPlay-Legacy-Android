@@ -86,8 +86,13 @@ class WiredMdnsResponder(
                 .contentEquals(hostAddressBytes)
         if (!dstIsMulticast && !dstIsUs) return emptyList()
         val udpLength = u16(frame, offset + IPV6_HEADER_BYTES + 4)
-        val dnsLength = udpLength - UDP_HEADER_BYTES
-        if (dnsLength < DNS_HEADER_BYTES || offset + IPV6_HEADER_BYTES + udpLength > offset + length) return emptyList()
+        // Issue #199: NCM frames can arrive with truncated tails on some head units
+        // while the UDP header still claims the full datagram length. The DNS
+        // questions are usually intact (only trailing bytes are cut), so parse the
+        // bytes that actually arrived instead of dropping the query silently.
+        // Downstream parsing stays bounds-checked; well-formed frames are unaffected.
+        val dnsLength = minOf(udpLength - UDP_HEADER_BYTES, length - IPV6_HEADER_BYTES - UDP_HEADER_BYTES)
+        if (dnsLength < DNS_HEADER_BYTES) return emptyList()
         val srcPort = u16(frame, offset + IPV6_HEADER_BYTES)
         val srcAddress = frame.copyOfRange(offset + IPV6_SOURCE_OFFSET, offset + IPV6_SOURCE_OFFSET + 16)
         val query = frame.copyOfRange(
@@ -119,8 +124,10 @@ class WiredMdnsResponder(
         if ((frame[offset + IPV6_NEXT_HEADER_OFFSET].toInt() and 0xff) != UDP_NEXT_HEADER) return null
         if (u16(frame, offset + IPV6_HEADER_BYTES + 2) != MDNS_PORT) return null
         val udpLength = u16(frame, offset + IPV6_HEADER_BYTES + 4)
-        val dnsLength = udpLength - UDP_HEADER_BYTES
-        if (dnsLength < DNS_HEADER_BYTES || offset + IPV6_HEADER_BYTES + udpLength > offset + length) return null
+        // Issue #199: same truncated-tail tolerance as answerFrames, so a
+        // truncated query we cannot answer still gets its name logged.
+        val dnsLength = minOf(udpLength - UDP_HEADER_BYTES, length - IPV6_HEADER_BYTES - UDP_HEADER_BYTES)
+        if (dnsLength < DNS_HEADER_BYTES) return null
         val query = frame.copyOfRange(
             offset + IPV6_HEADER_BYTES + UDP_HEADER_BYTES,
             offset + IPV6_HEADER_BYTES + UDP_HEADER_BYTES + dnsLength,

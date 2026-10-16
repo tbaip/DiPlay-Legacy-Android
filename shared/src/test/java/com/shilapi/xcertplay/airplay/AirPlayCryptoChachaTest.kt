@@ -135,6 +135,45 @@ class AirPlayCryptoChachaTest {
         } finally { pool.shutdownNow() }
     }
 
+    @Test fun missingUpdateAadFallsBackToBouncyCastleWhenAadPresent() {
+        val original = AirPlayCrypto.hasUpdateAAD
+        AirPlayCrypto.hasUpdateAAD = false
+        try {
+            val key = bytes(32)
+            val nonce = AirPlayCrypto.nonce64(42)
+            val aad = bytes(2) // 2-byte header as used in CarPlay ControlCipher
+            val plain = bytes(256)
+            val sealed = AirPlayCrypto.chachaSeal(key, nonce, plain, aad)
+            assertEquals("BouncyCastle", AirPlayCrypto.chachaImplementation)
+            val opened = AirPlayCrypto.chachaOpen(key, nonce, sealed, aad)
+            assertArrayEquals(plain, opened)
+
+            val tampered = sealed.copyOf().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() }
+            try {
+                AirPlayCrypto.chachaOpen(key, nonce, tampered, aad)
+                fail("fallback accepted a tampered tag")
+            } catch (_: InvalidCipherTextException) { }
+        } finally {
+            AirPlayCrypto.hasUpdateAAD = original
+        }
+    }
+
+    @Test fun missingUpdateAadStillUsesPlatformWhenAadEmpty() {
+        val original = AirPlayCrypto.hasUpdateAAD
+        AirPlayCrypto.hasUpdateAAD = false
+        try {
+            val key = bytes(32)
+            val nonce = AirPlayCrypto.nonce64(43)
+            val plain = bytes(1024)
+            val sealed = AirPlayCrypto.chachaSeal(key, nonce, plain)
+            assertNotEquals("BouncyCastle", AirPlayCrypto.chachaImplementation)
+            val opened = AirPlayCrypto.chachaOpen(key, nonce, sealed)
+            assertArrayEquals(plain, opened)
+        } finally {
+            AirPlayCrypto.hasUpdateAAD = original
+        }
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun platformState(): ThreadLocal<Any?> = AirPlayCrypto::class.java
         .getDeclaredField("platformState").apply { isAccessible = true }.get(null) as ThreadLocal<Any?>

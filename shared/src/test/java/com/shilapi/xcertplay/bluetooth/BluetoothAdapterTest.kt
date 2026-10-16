@@ -75,6 +75,6 @@ class BluetoothAdapterTest {
 
         // On non-Nissan system or test JVM, HSAE package com.hsae.bluetoothservice does not exist
         assertFalse(hsae.isSupported())
-        assertEquals("AndroidBluetoothAdapter", hybrid.getAdapterName())
+        assertEquals("Hybrid(Android)", hybrid.getAdapterName())
     }
 }

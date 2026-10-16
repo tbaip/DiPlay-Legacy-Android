@@ -1,6 +1,55 @@
+# DiPlay 0.2.69 — 2026-10-16
+
+- Fix Android 4.2 / API 17 music playback crash: adapt `registerMediaButtonEventReceiver` and `unregisterMediaButtonEventReceiver` to use `ComponentName` on API < 18, eliminating `NoSuchMethodError` when launching music or Now Playing (#197).
+- Legacy audio media key resilience: wrap media-key registration, RemoteControlClient setup, and playback state updates in defensive exception handlers to avoid aborting on broken custom ROMs.
+- Bundle Realtek USB Bluetooth firmware: package official firmware for 16 Realtek controller families (RTL8723A/B/D, RTL8761A/B/C, RTL8821A/C, RTL8822B/C, RTL8851B, RTL8852A/B/C, RTL8922A) for plug-and-play external dongle support on legacy head units.
+- Android 4.4 steering-wheel media key forwarding: fix missing key delivery when media session is null on older platforms.
+
+See [v0.2.69 release notes](docs/RELEASE-NOTES-0.2.69.md) for validation and device-testing limits.
+
+# DiPlay 0.2.68 — 2026-10-16
+
+- Dedicated thread for lwIP transmit: move lwIP network frame output to a dedicated sender thread, eliminating native lock contention and boosting throughput (#187).
+- lwIP heap concurrency protection: acquire mutex before allocating input pbuf to prevent memory corruption and SIGABRT crashes.
+- StartSession event precision matching: avoid watchdog-triggered handshake cancellations during wired setup (#187).
+- Local VPN permission retry dialog: prompt driver to re-grant VPN consent when dismissed, eliminating dead-end connection attempts (#188).
+- AirPlay TIME_WAIT & dual-stack socket binding: robust port reuse and dual-stack fallback for faster wireless reconnection.
+- Android 4.2 video playback fix: guard MediaCodec.getName() behind API 21 check, resolving NoSuchMethodError on legacy runtimes.
+- Legacy ROM Cipher.updateAAD fallback: dynamically detect updateAAD availability and smoothly fallback to BouncyCastle on API 17 / pseudo-4.4 units (#189).
+- Upstream feature ports: WheelSiriKey double-click detection (#813), car hotspot retry loop avoidance (#789), and phone call earphone-to-speaker forced routing (#797).
+- Automated release verification: ensure published APK strictly corresponds to current git tree with 0 diffs.
+
+See [v0.2.68 release notes](docs/RELEASE-NOTES-0.2.68.md) for validation and device-testing limits.
+
+# DiPlay 0.2.67 — 2026-10-16
+
+- Fix Android 4.x startup crash (NoClassDefFoundError): include LoggingGate and FloatingDotOverlay in multidex main DEX keep rules and eliminate kotlin.Result from cold-start Application.onCreate.
+
+See [v0.2.67 release notes](docs/RELEASE-NOTES-0.2.67.md) for validation and device-testing limits.
+
+# DiPlay 0.2.66 — 2026-10-16
+
+- Fix Android 4.2 SETUP loop failure & connection stall: DatagramSocket does not implement Closeable on API < 19; eliminate ClassCastException in socket binding to allow reliable handshake.
+- Diagnostic logging toggle: add option in Settings → Diagnostics to disable session logging, significantly reducing CPU & disk I/O overhead on older head units.
+
+See [v0.2.66 release notes](docs/RELEASE-NOTES-0.2.66.md) for validation and device-testing limits.
+
+# DiPlay 0.2.65 — 2026-10-16
+
+- Fullscreen app view & dock auto-hide gesture: optional toggle under Display settings to hide the CarPlay dock for full-screen navigation, with edge-swipe gesture to reveal.
+- Instant wired reconnect on unplug & replug: eliminate 1-2 minute reconnect delay after physical USB cable replug.
+- TCP packet loss & link stability improvements: optimize userspace lwIP packet processing and IPv6 neighbor solicitations.
+- Desktop focus & touch responsiveness fix: eliminate unresponsiveness on head unit launcher desktop after lingering.
+- Floating dot presentation polish: show floating dot only when leaving CarPlay and automatically sync its icon with current app.
+
+See [v0.2.65 release notes](docs/RELEASE-NOTES-0.2.65.md) for validation and device-testing limits.
+
 # DiPlay 0.2.64 — 2026-10-15
 
+- Multi-USB port coexistence & peripheral isolation: automatically distinguish iPhone and USB Bluetooth dongles from dashcams (UVC) and storage drives (UDisk) on multi-USB head units (e.g. Allwinner T3).
 - Android 4.2/4.3 compatibility fixes: guard against missing Cipher.updateAAD (API 19+) by falling back to bundled BouncyCastle ChaCha20-Poly1305, and replace HandlerThread.quitSafely (API 18+) with quit() on legacy platforms (#170, #178).
+- Userspace lwIP TCP/IP stack for wired CarPlay: direct NCM USB frame relaying via userspace lwIP, bypassing system network stack limitations on legacy Android head units (Allwinner T3, MTK, etc.).
+- Native JNI NCM relay (`lwip_ncm_relay.c`): zero-copy network buffer forwarding between USB host endpoints and CarPlay TCP/UDP services.
 - In-app updater fix for Android 4.x/5.x: ensure PackageInstaller receives accessible file:// URIs with world-readable permissions and multi-directory fallback across diverse legacy storage layouts.
 
 See [v0.2.64 release notes](docs/RELEASE-NOTES-0.2.64.md) for validation and device-testing limits.

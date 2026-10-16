@@ -9,6 +9,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
+import java.net.Socket
 import java.util.Collections
 import java.util.Random
 
@@ -97,10 +98,10 @@ internal object AirPlaySocketBinder {
             socket.bind(endpoint)
         }
 
-    fun serverAt(address: InetAddress, stage: String): ServerSocket = bindEphemeral(
+    fun serverAt(address: InetAddress, stage: String, reuseAddress: Boolean = false): ServerSocket = bindEphemeral(
         stage, address, { ServerSocket() },
         { socket, endpoint ->
-            socket.reuseAddress = false
+            socket.reuseAddress = reuseAddress
             socket.bind(endpoint)
         },
     )
@@ -111,15 +112,20 @@ internal object AirPlaySocketBinder {
      * "Can't bind to a link-local address without a scope id" while the same literal binds fine
      * for TCP, so a single wildcard choice is not portable. Walk increasingly concrete candidates
      * and keep the first address that binds.
+     *
+     * The type parameter is deliberately NOT bounded by Closeable: java.net.DatagramSocket only
+     * implements java.io.Closeable from API 19 on, so on API <= 18 (Android 4.2 and below) the
+     * erased-bound checkcast throws ClassCastException before any bind happens (issue #170).
+     * Use [closeQuietly] instead of a Closeable-typed close.
      */
-    private fun <T : Closeable> bindAcrossWildcards(
+    private fun <T> bindAcrossWildcards(
         reference: InetAddress?,
         stage: String,
         create: () -> T,
         bind: (T, InetSocketAddress) -> Unit,
     ): T = bindAcrossAddresses(stage, wildcardCandidates(reference), create, bind)
 
-    internal fun <T : Closeable> bindAcrossAddresses(
+    internal fun <T> bindAcrossAddresses(
         stage: String,
         candidates: List<InetAddress>,
         create: () -> T,
@@ -157,7 +163,7 @@ internal object AirPlaySocketBinder {
         return candidates
     }
 
-    internal fun <T : Closeable> bindEphemeral(
+    internal fun <T> bindEphemeral(
         stage: String,
         address: InetAddress,
         create: () -> T,
@@ -174,7 +180,7 @@ internal object AirPlaySocketBinder {
                 bind(socket, InetSocketAddress(address, if (attempt == 0) 0 else nextPort()))
                 return socket
             } catch (error: Exception) {
-                runCatching { socket?.close() }
+                closeQuietly(socket)
                 if (error !is IOException) throw error
                 last = error
                 if (!isAddressInUse(error)) {
@@ -187,6 +193,24 @@ internal object AirPlaySocketBinder {
                 (last?.message ?: "unknown bind error"),
             last,
         )
+    }
+
+    /**
+     * Best-effort close without a Closeable type bound: java.net.DatagramSocket does not
+     * implement java.io.Closeable on API <= 18, so closing through a Closeable-typed reference
+     * throws ClassCastException there (issue #170). Close the concrete socket types directly.
+     */
+    private fun closeQuietly(socket: Any?) {
+        try {
+            when (socket) {
+                is Socket -> socket.close()
+                is ServerSocket -> socket.close()
+                is DatagramSocket -> socket.close()
+                is Closeable -> socket.close()
+            }
+        } catch (_: Exception) {
+            // Best-effort close.
+        }
     }
 
     private val random = Random()

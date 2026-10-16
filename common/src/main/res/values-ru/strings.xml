@@ -605,6 +605,8 @@
     <string name="carplay_dock_automatic">Автоматически</string>
     <string name="carplay_dock_driver_side">Со стороны водителя</string>
     <string name="carplay_dock_bottom">Снизу</string>
+    <string name="settings_dock_auto_hide">Автоскрытие панели Dock</string>
+    <string name="settings_dock_auto_hide_description">Полноэкранный режим приложения; проведите от края экрана, чтобы открыть панель Dock</string>
     <string name="carplay_dock_hint">Где CarPlay показывает приложения, часы и состояние. Между «Со стороны водителя» и «Снизу» переключается сразу; «Автоматически» оставляет выбор iPhone и действует после переподключения.</string>
     <string name="split_screen_areas">CarPlay в разделённом экране</string>
     <string name="split_screen_areas_description">Когда головное устройство показывает DiPlay в разделённом экране, CarPlay перерисовывается под это окно, а не уменьшается с чёрными полосами, и возвращается на весь экран без переподключения. Размер окна запоминается в первый раз, поэтому со следующего подключения картинка точно по размеру. Если панель приложений на «Автоматически», CarPlay тогда ставит её снизу. Применяется со следующего подключения.</string>
@@ -659,7 +661,20 @@
     <string name="settings_car_bluetooth_mac_dialog_message">Введите собственный MAC-адрес Bluetooth автомобиля (например AA:BB:CC:DD:EE:FF). Его можно найти в iPhone Настройки → Bluetooth → (i) или в настройках автомобиля.</string>
     <string name="settings_car_bluetooth_mac_clear">Авто / Очистить</string>
     <string name="settings_bluetooth_diagnostic">Диагностика Bluetooth</string>
+    <string name="settings_log_output_title">Вывод журнала</string>
+    <string name="settings_log_output_subtitle">Отключение снижает нагрузку на старые головные устройства. Вступает в силу после перезапуска приложения; включайте снова, когда нужно диагностировать проблему.</string>
     <string name="settings_car_bluetooth_mac_invalid">Пожалуйста, введите корректный 12-значный шестнадцатеричный MAC-адрес.</string>
     <string name="settings_harman_fullscreen_experimental">Полный экран Harman (экспериментально)</string>
     <string name="settings_harman_fullscreen_experimental_description">Позволяет CarPlay занять область штатной боковой панели на совместимых устройствах Harman. Применяется при следующем открытии окна CarPlay; на других прошивках возможны ошибки отображения.</string>
+    <string name="settings_usb_bluetooth_title">Внешний USB Bluetooth</string>
+    <string name="settings_usb_bluetooth_subtitle">Прямой стек для внешних USB Bluetooth адаптеров (UGREEN CM591/CM390, Realtek, Actions ATS2851) для беспроводного CarPlay.</string>
+    <string name="settings_usb_bluetooth_not_detected">Внешний USB Bluetooth адаптер не обнаружен — подключите совместимый адаптер.</string>
+    <string name="settings_usb_bluetooth_detected">Обнаружено: %1$s</string>
+    <string name="settings_usb_bluetooth_needs_permission">Требуется разрешение USB — нажмите для запроса</string>
+    <string name="settings_usb_bluetooth_request_permission">Предоставить доступ к USB</string>
+    <string name="settings_usb_bluetooth_start">Запустить службу и режим сопряжения</string>
+    <string name="settings_usb_bluetooth_stop">Остановить USB Bluetooth</string>
+    <string name="settings_usb_bluetooth_running">Работает · MAC: %1$s · Имя: %2$s</string>
+    <string name="settings_usb_bluetooth_self_test">Самодиагностика оборудования Bluetooth</string>
+    <string name="settings_usb_bluetooth_testing">Выполняется проверка…</string>
 </resources>

@@ -122,4 +122,49 @@ class EthernetIpv6CodecTest {
         while (sum ushr 16 != 0L) sum = (sum and 0xffff) + (sum ushr 16)
         return sum.toInt()
     }
+
+    @Test
+    fun `parses neighbor solicitation with source link layer option`() {
+        val srcIp = byteArrayOf(0xfe.toByte(), 0x80.toByte(), 0, 0, 0, 0, 0, 0, 0x12, 0x34, 0x56, 0x78, 0x9a.toByte(), 0xbc.toByte(), 0xde.toByte(), 0xf0.toByte())
+        val targetIp = byteArrayOf(0xfe.toByte(), 0x80.toByte(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2)
+        val srcMac = byteArrayOf(0x00, 0x11, 0x22, 0x33, 0x44, 0x55)
+
+        val nsPacket = ByteArray(72)
+        nsPacket[0] = 0x60
+        nsPacket[5] = 32 // 24 ICMP + 8 option
+        nsPacket[6] = 58 // ICMPv6
+        srcIp.copyInto(nsPacket, 8) // source IP
+        nsPacket[40] = 135.toByte() // NS
+        targetIp.copyInto(nsPacket, 48) // target IP
+        nsPacket[64] = 1 // Option type 1: Source LL address
+        nsPacket[65] = 1 // Length 1 (8 bytes)
+        srcMac.copyInto(nsPacket, 66)
+
+        val parsed = EthernetIpv6Codec.parseNeighborSolicitation(nsPacket, 0, 72)
+        org.junit.Assert.assertNotNull(parsed)
+        org.junit.Assert.assertArrayEquals(srcIp, parsed!!.sourceIp)
+        org.junit.Assert.assertArrayEquals(targetIp, parsed.targetIp)
+        org.junit.Assert.assertNotNull(parsed.sourceMac)
+        org.junit.Assert.assertArrayEquals(srcMac, parsed.sourceMac)
+    }
+
+    @Test
+    fun `parses DAD neighbor solicitation without link layer option`() {
+        val unspecifiedSrc = ByteArray(16)
+        val targetIp = byteArrayOf(0xfe.toByte(), 0x80.toByte(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
+
+        val nsPacket = ByteArray(64)
+        nsPacket[0] = 0x60
+        nsPacket[5] = 24
+        nsPacket[6] = 58
+        unspecifiedSrc.copyInto(nsPacket, 8)
+        nsPacket[40] = 135.toByte()
+        targetIp.copyInto(nsPacket, 48)
+
+        val parsed = EthernetIpv6Codec.parseNeighborSolicitation(nsPacket, 0, 64)
+        org.junit.Assert.assertNotNull(parsed)
+        org.junit.Assert.assertArrayEquals(unspecifiedSrc, parsed!!.sourceIp)
+        org.junit.Assert.assertArrayEquals(targetIp, parsed.targetIp)
+        org.junit.Assert.assertNull(parsed.sourceMac)
+    }
 }

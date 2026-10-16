@@ -584,6 +584,8 @@ class WheelJoystick {
 class WheelSiriKey {
     private var lastPressMillis: Long? = null
 
+    enum class DoublePressAction { FIRST, REPEAT, CONFIRMED }
+
     /**
      * Some head units send a held key as a new press about every 100 ms. Presses closer together than
      * [REPEAT_GAP_MILLIS] belong to the press before them, so a hold opens Siri once.
@@ -594,8 +596,36 @@ class WheelSiriKey {
         return last == null || eventTimeMillis - last >= REPEAT_GAP_MILLIS
     }
 
+    /**
+     * Port of upstream #813: distinguishes the first press, held-key repeats and the second distinct
+     * press inside [maximumGapMillis]. Very close presses move the hold boundary so a long stream of
+     * repeats can never look like a double press.
+     */
+    fun onDoublePress(eventTimeMillis: Long, maximumGapMillis: Long): DoublePressAction {
+        require(maximumGapMillis >= MIN_DOUBLE_PRESS_GAP_MILLIS)
+        val last = lastPressMillis
+        val gap = last?.let { eventTimeMillis - it }
+        return when {
+            gap == null || gap <= 0 || gap > maximumGapMillis -> {
+                lastPressMillis = eventTimeMillis
+                DoublePressAction.FIRST
+            }
+            gap < MIN_DOUBLE_PRESS_GAP_MILLIS -> {
+                lastPressMillis = eventTimeMillis
+                DoublePressAction.REPEAT
+            }
+            else -> {
+                lastPressMillis = null
+                DoublePressAction.CONFIRMED
+            }
+        }
+    }
+
+    fun reset() { lastPressMillis = null }
+
     companion object {
         const val REPEAT_GAP_MILLIS = 400L
+        const val MIN_DOUBLE_PRESS_GAP_MILLIS = 120L
     }
 }
 

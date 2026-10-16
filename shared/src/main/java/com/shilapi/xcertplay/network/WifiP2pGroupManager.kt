@@ -1,4 +1,4 @@
-﻿package com.shilapi.xcertplay.network
+package com.shilapi.xcertplay.network
 
 import android.Manifest
 import android.app.AppOpsManager
@@ -765,7 +765,8 @@ class WifiP2pGroupManager(
         } else true
         val required = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.NEARBY_WIFI_DEVICES
             else Manifest.permission.ACCESS_FINE_LOCATION
-        val granted = appContext.checkSelfPermission(required) == PackageManager.PERMISSION_GRANTED
+        val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) appContext.checkSelfPermission(required) == PackageManager.PERMISSION_GRANTED
+        else appContext.checkPermission(required, android.os.Process.myPid(), android.os.Process.myUid()) == PackageManager.PERMISSION_GRANTED
         val locationAccessMode = if (Build.VERSION.SDK_INT in 29..32) runCatching {
             appContext.getSystemService(AppOpsManager::class.java)?.unsafeCheckOpNoThrow(
                 AppOpsManager.OPSTR_FINE_LOCATION, android.os.Process.myUid(), appContext.packageName)

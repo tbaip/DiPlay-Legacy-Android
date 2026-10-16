@@ -116,3 +116,11 @@ internal fun observedManualHotspotChannel(
     apFrequencyMHz?.let(::wifiFrequencyMhzToChannel)?.let { return it }
     return 0
 }
+
+internal fun parseAccessPointAddress(text: String?): ByteArray? {
+    if (text == null || !text.matches(Regex("(?i)[0-9a-f]{2}(:[0-9a-f]{2}){5}"))) return null
+    val bytes = text.split(':').map { it.toInt(16).toByte() }.toByteArray()
+    if (bytes.all { it == 0.toByte() } || bytes[0].toInt() and 1 != 0 ||
+        text.equals("02:00:00:00:00:00", ignoreCase = true)) return null
+    return bytes
+}

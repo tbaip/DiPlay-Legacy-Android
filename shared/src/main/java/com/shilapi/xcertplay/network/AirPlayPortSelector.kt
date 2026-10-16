@@ -76,7 +76,7 @@ object AirPlayPortSelector {
     }
 
     private fun bindPort(address: InetAddress, port: Int, reuseAddress: Boolean = false): ServerSocket {
-        if (port == 0) return AirPlaySocketBinder.serverAt(address, "AirPlay control")
+        if (port == 0) return AirPlaySocketBinder.serverAt(address, "AirPlay control", reuseAddress)
         val server = ServerSocket()
         return try {
             // Issue #152: the wired listener also binds the IPv6 wildcard as a fallback

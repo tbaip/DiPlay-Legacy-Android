@@ -201,6 +201,17 @@ class CarPlayMediaEngine(
 
     override fun onAudio(session: AirPlaySession, type: Int, stream: Map<String, Any?>): Map<String, Any?>? {
         val audioType = stream["audioType"]?.toString()?.lowercase() ?: "default"
+        // Issue #195: notification announcements arrive as type 100 with audioType=alert
+        // (or default). Log them explicitly so users can tell whether the iPhone ever
+        // initiated announcement audio; these streams are routed through the NAVIGATION
+        // channel, i.e. the "导航音频流" setting.
+        if (audioType == "alert" || audioType == "default") {
+            Log.i(
+                TAG,
+                "airplay notification audio SETUP type=$type audioType=$audioType " +
+                    "(iPhone initiated announcement; routed via the 导航音频流 setting)",
+            )
+        }
         // Concurrent streams may share a type (e.g. music, guidance and Siri can all arrive as
         // type 100); only the same (type, audioType) pair replaces a previous stream.
         val streamKey = StreamKey(session, type, audioType)
@@ -209,6 +220,7 @@ class CarPlayMediaEngine(
         audioMeta.remove(streamKey)
         audioCaptures.remove(streamKey)?.close()
         if (pendingMicrophone.remove(streamKey) != null) sink.onMicrophoneStopped(streamId)
+        session.logDebug("Audio stream stopped type=$type audioType=$audioType")
         sink.onAudioStopped(streamId)
 
         val key = outputKey(session, stream) ?: return null
@@ -217,13 +229,12 @@ class CarPlayMediaEngine(
             type,
             audioType,
         )
-        Log.i(
-            TAG,
-            "airplay audio format type=$type audioType=$audioType codec=${format.codec} " +
-                "rate=${format.sampleRate} channels=${format.channels} " +
-                "formatBits=0x${java.lang.Long.toHexString((stream["audioFormat"] as? Number)?.toLong() ?: 0L)} " +
-                "micPort=${(stream["dataPort"] as? Number)?.toInt() ?: 0}",
-        )
+        val audioInfo = "airplay audio format type=$type audioType=$audioType codec=${format.codec} " +
+            "rate=${format.sampleRate} channels=${format.channels} " +
+            "formatBits=0x${java.lang.Long.toHexString((stream["audioFormat"] as? Number)?.toLong() ?: 0L)} " +
+            "micPort=${(stream["dataPort"] as? Number)?.toInt() ?: 0}"
+        Log.i(TAG, audioInfo)
+        session.logDebug(audioInfo)
         val connectionId = stream["streamConnectionID"]
         val latencyMs = (stream["audioLatencyMs"] as? Number)?.toInt() ?: 0
         val meta = AudioMeta(type, format, connectionId, latencyMs)
@@ -236,6 +247,7 @@ class CarPlayMediaEngine(
         val (dataPort, controlPort) = audio.listen(
             object : AudioStream.Listener {
                 override fun onStarted(firstSample: Int) {
+                    session.logDebug("Audio stream started type=$type audioType=$audioType firstSample=$firstSample")
                     meta.firstSample = firstSample
                     meta.originNs = System.nanoTime()
                     sink.onAudioStarted(streamId, format, firstSample)

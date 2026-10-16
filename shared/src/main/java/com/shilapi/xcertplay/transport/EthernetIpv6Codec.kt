@@ -137,6 +137,15 @@ object EthernetIpv6Codec {
     }
 
     /**
+     * Parsed representation of an ICMPv6 Neighbor Solicitation message.
+     */
+    data class ParsedNeighborSolicitation(
+        val sourceIp: ByteArray,
+        val targetIp: ByteArray,
+        val sourceMac: ByteArray?,
+    )
+
+    /**
      * Checks if an IPv6 payload contains an ICMPv6 Neighbor Solicitation (type 135) targeting [targetIpv6].
      */
     fun isNeighborSolicitationFor(
@@ -158,6 +167,44 @@ object EthernetIpv6Codec {
             if (packet[targetOffset + i] != targetIpv6[i]) return false
         }
         return true
+    }
+
+    /**
+     * Parses an ICMPv6 Neighbor Solicitation (RFC 4861 §4.3) message from [packet] starting at [offset].
+     * Returns null if the packet is truncated, not IPv6, or not a Neighbor Solicitation.
+     */
+    fun parseNeighborSolicitation(
+        packet: ByteArray,
+        offset: Int,
+        length: Int,
+    ): ParsedNeighborSolicitation? {
+        if (length < ICMPV6_NS_MIN_BYTES || packet.size < offset + length) return null
+        val version = (packet[offset].toInt() ushr 4) and 0x0f
+        if (version != 6) return null
+        val nextHeader = packet[offset + IPV6_NEXT_HEADER_OFFSET].toInt() and 0xff
+        if (nextHeader != ICMPV6_NEXT_HEADER) return null
+        val icmpType = packet[offset + IPV6_HEADER_BYTES].toInt() and 0xff
+        if (icmpType != ICMPV6_NEIGHBOR_SOLICITATION) return null
+
+        val sourceIp = packet.copyOfRange(offset + IPV6_SOURCE_OFFSET, offset + IPV6_SOURCE_OFFSET + 16)
+        val targetOffset = offset + IPV6_HEADER_BYTES + 8
+        val targetIp = packet.copyOfRange(targetOffset, targetOffset + 16)
+
+        var sourceMac: ByteArray? = null
+        var optOffset = offset + IPV6_HEADER_BYTES + ICMPV6_NS_BYTES
+        val endOffset = offset + length
+        while (optOffset + 2 <= endOffset) {
+            val optType = packet[optOffset].toInt() and 0xff
+            val optLen = (packet[optOffset + 1].toInt() and 0xff) * 8
+            if (optLen <= 0 || optOffset + optLen > endOffset) break
+            if (optType == 1 && optLen >= 8 && optOffset + 2 + MAC_BYTES <= endOffset) {
+                sourceMac = packet.copyOfRange(optOffset + 2, optOffset + 2 + MAC_BYTES)
+                break
+            }
+            optOffset += optLen
+        }
+
+        return ParsedNeighborSolicitation(sourceIp, targetIp, sourceMac)
     }
 
     /**

@@ -40,6 +40,7 @@ import android.view.ViewTreeObserver
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -199,6 +200,7 @@ class CarPlayHostActivity : ComponentActivity() {
                 maybeStartCarPlay()
             } else {
                 setStatus(getString(R.string.vpn_consent_was_denied))
+                showVpnDeniedRetryDialog()
             }
         }
     private val wirelessPermissions =
@@ -386,6 +388,21 @@ class CarPlayHostActivity : ComponentActivity() {
     private var maximumDetectedHeightPixels = 0
     private var rightHandDrive = false
     private var carPlayDock = CarPlayDock.AUTOMATIC
+    private var dockAutoHideEnabled = false
+    private var dockRevealed = false
+    private var dockEdgeSwipeActive = false
+    private var dockEdgeStartX = 0f
+    private var dockEdgeStartY = 0f
+    private var dockCloseSwipeActive = false
+    private var dockCloseStartX = 0f
+    private var dockCloseStartY = 0f
+    private var dockGestureIntercepted = false
+    private val hideDockRunnable = Runnable {
+        if (dockRevealed) {
+            dockRevealed = false
+            videoView?.let { updateVideoLayout(it.width, it.height) }
+        }
+    }
     /** The view areas the next session declares (see createAirPlayConfig). */
     private var pendingViewAreas: CarPlayViewAreas? = null
     /** The dock the running session declared; null before the first connection. */
@@ -424,6 +441,7 @@ class CarPlayHostActivity : ComponentActivity() {
      * anyway only produces an infinite retry loop with a cryptic error.
      */
     private var vpnConsentUnavailable = false
+    private var vpnDeniedDialog: android.app.AlertDialog? = null
     private var hotspotStatus = HotspotStatus(state = "off")
     private var menuOpen = false
     private var latestStage = "Preparing CarPlay"
@@ -573,8 +591,16 @@ class CarPlayHostActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         NavigationWidgetUpdater.attach(applicationContext)
         CarPlayCallKeys.install(applicationContext)
+        // USB-Bluetooth dongle: route Numeric Comparison pairing requests to
+        // this Activity's dialog (no-op when no dongle stack is present).
+        runCatching {
+            UsbBtPairingUiRouter.installOn(
+                com.shilapi.xcertplay.bluetooth.CarPlayBluetoothManager.get(this),
+            )
+        }
         CenterMapOverlay.requestShow = ::showCenterMap
         FloatingDotOverlay.restoreIfEnabled(applicationContext)
         MapMirrors.sink = mirrorSink
@@ -644,6 +670,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun loadPersistedSettings() {
         carPlayDock = CarPlayDock.load(this)
+        dockAutoHideEnabled = AirPlayPersistence.loadDockAutoHide(this)
         carPlayNightMode = AirPlayPersistence.loadCarPlayNightMode(this)
         ambientLightThreshold = AirPlayPersistence.loadAmbientLightThreshold(this)
         ambientDelaySeconds = AirPlayPersistence.loadAmbientDelaySeconds(this)
@@ -783,6 +810,20 @@ class CarPlayHostActivity : ComponentActivity() {
         }
     }
 
+    // Issue #188: denying VPN consent left the wired session dead with no way back
+    // except killing the app. Offer a retry that re-runs the system consent dialog.
+    private fun showVpnDeniedRetryDialog() {
+        if (shuttingDown.get() || isFinishing || isDestroyed) return
+        vpnDeniedDialog?.dismiss()
+        vpnDeniedDialog = android.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.vpn_consent_was_denied))
+            .setMessage(getString(R.string.vpn_consent_denied_retry_hint))
+            .setPositiveButton(getString(R.string.vpn_consent_retry)) { _, _ -> requestVpnConsent() }
+            .setNegativeButton(getString(R.string.cancel), null)
+            .setOnDismissListener { vpnDeniedDialog = null }
+            .show()
+    }
+
     private fun requestWirelessPermissions() {
         val permissions = requiredWirelessPermissions()
         if (permissions.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }) {
@@ -863,6 +904,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        UsbBtPairingUiRouter.register(this)
         val savedNightMode = AirPlayPersistence.loadCarPlayNightMode(this)
         val savedThreshold = AirPlayPersistence.loadAmbientLightThreshold(this)
         val savedDelay = AirPlayPersistence.loadAmbientDelaySeconds(this)
@@ -897,9 +939,15 @@ class CarPlayHostActivity : ComponentActivity() {
             recreate()
             return
         }
-        // The settings screen returns here with FLAG_ACTIVITY_REORDER_TO_FRONT, so this screen is
-        // resumed, not recreated: refresh what that screen can change before it is used again.
-        if (!menuOpen) loadConnectionSettings()
+        if (!menuOpen) {
+            loadConnectionSettings()
+            val savedDockAutoHide = AirPlayPersistence.loadDockAutoHide(this)
+            if (savedDockAutoHide != dockAutoHideEnabled) {
+                dockAutoHideEnabled = savedDockAutoHide
+                dockRevealed = false
+                videoView?.let { updateVideoLayout(it.width, it.height) }
+            }
+        }
         locationPermissionAvailable = hasFineLocationPermission()
         if (locationReportingEnabled && !locationPermissionAvailable && !menuOpen) {
             requestLocationPermission()
@@ -1274,8 +1322,20 @@ class CarPlayHostActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
+            gestureSequenceActive = false
+            gestureTracking = false
+            touchOutsideContent = false
             refreshConfiguration(source = ThemeModeDiagnostics.Source.WINDOW_FOCUS)
             applyFullscreenMode()
+        } else {
+            mainHandler.removeCallbacks(hideDockRunnable)
+            dockEdgeSwipeActive = false
+            dockCloseSwipeActive = false
+            dockGestureIntercepted = false
+            if (dockRevealed) {
+                dockRevealed = false
+                videoView?.let { updateVideoLayout(it.width, it.height) }
+            }
         }
     }
 
@@ -1285,6 +1345,8 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        mainHandler.removeCallbacks(hideDockRunnable)
+        UsbBtPairingUiRouter.unregister(this)
         nightModeController.pause()
         super.onPause()
     }
@@ -1387,6 +1449,7 @@ class CarPlayHostActivity : ComponentActivity() {
         removeVideoSurfaceProbe()
         fallbackVideoView?.holder?.removeCallback(fallbackSurfaceCallback)
         mainHandler.removeCallbacks(refreshTurnOverlay)
+        mainHandler.removeCallbacks(hideDockRunnable)
         AirPlayPersistence.overlaySettingsListener = null
         com.shilapi.xcertplay.hud.BydNavigationOutputs.setTurnOverlayListener(null)
         if (realSdkInt() >= 21) clusterMonitor?.stop()
@@ -1420,6 +1483,8 @@ class CarPlayHostActivity : ComponentActivity() {
         sessionLog?.close()
         if (crashDiagnosticLog === sessionLog) crashDiagnosticLog = null
         sessionLog = null
+        vpnDeniedDialog?.dismiss()
+        vpnDeniedDialog = null
         super.onDestroy()
     }
 
@@ -4021,6 +4086,9 @@ class CarPlayHostActivity : ComponentActivity() {
             }
 
             override fun onDebugLog(message: String) {
+                // Session log output switch (issue #186): drop everything before formatting,
+                // redaction or file IO to spare old head units the collection cost.
+                if (!LoggingGate.enabled) return
                 if (DiagnosticRedactor.redact(message) == null) return
                 if (message.startsWith(CarPlayController.CONNECTION_DIAGNOSTIC_PREFIX + " ")) {
                     // Retain old-controller teardown evidence without accepting its UI/session state.
@@ -4032,7 +4100,6 @@ class CarPlayHostActivity : ComponentActivity() {
                         return@runOnUiThread
                     }
                     DisplayDiagnosticSnapshot.record(this@CarPlayHostActivity, displayDiagnosticAttempt, message)
-                    if (menuOpen) return@runOnUiThread
                     if (message.startsWith(PROTOCOL_TRACE_PREFIX)) {
                         appendFileLog(message)
                     } else {
@@ -4479,7 +4546,18 @@ class CarPlayHostActivity : ComponentActivity() {
                     display.width * scaleX, display.height * scaleY)
             }
         }
-        return CarPlayVideoLayout.fit(display.width, display.height, viewWidth, viewHeight)
+        val base = CarPlayVideoLayout.fit(display.width, display.height, viewWidth, viewHeight)
+        if (dockAutoHideEnabled && !dockRevealed && display.width > display.height && carPlayDock != CarPlayDock.BOTTOM) {
+            val dockRatio = 0.13f
+            val appRatio = 1f - dockRatio
+            if (base.width > 0f && appRatio > 0f) {
+                val scale = viewWidth.toFloat() / (base.width * appRatio)
+                val newWidth = base.width * scale
+                val newLeft = if (rightHandDrive) 0f else -newWidth * dockRatio
+                return CarPlayVideoLayout(newLeft, base.top, newWidth, base.height)
+            }
+        }
+        return base
     }
 
     private fun updateVideoLayout(viewWidth: Int, viewHeight: Int) {
@@ -4504,6 +4582,25 @@ class CarPlayHostActivity : ComponentActivity() {
             })
         }
         if (sidePanelShown) placeSidePanel(viewWidth, viewHeight)
+    }
+
+    private fun revealDockTemporarily(view: View) {
+        if (!dockRevealed) {
+            dockRevealed = true
+            updateVideoLayout(view.width, view.height)
+            controller?.sendTouch(emptyList())
+        }
+        mainHandler.removeCallbacks(hideDockRunnable)
+        mainHandler.postDelayed(hideDockRunnable, 5000L)
+    }
+
+    private fun hideDock(view: View) {
+        mainHandler.removeCallbacks(hideDockRunnable)
+        if (dockRevealed) {
+            dockRevealed = false
+            updateVideoLayout(view.width, view.height)
+            controller?.sendTouch(emptyList())
+        }
     }
 
     private fun recordDetectedMaximum(size: DisplaySize) {
@@ -4982,6 +5079,84 @@ class CarPlayHostActivity : ComponentActivity() {
             return true
         }
 
+        if (dockAutoHideEnabled && carPlayDock != CarPlayDock.BOTTOM &&
+            (sessionDisplay?.let { it.width > it.height } ?: (view.width > view.height))) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    dockEdgeSwipeActive = false
+                    dockCloseSwipeActive = false
+                    dockGestureIntercepted = false
+                    if (!dockRevealed) {
+                        val isNearEdge = if (rightHandDrive) {
+                            event.x >= view.width - dp(48)
+                        } else {
+                            event.x <= dp(48)
+                        }
+                        if (isNearEdge) {
+                            dockEdgeSwipeActive = true
+                            dockEdgeStartX = event.x
+                            dockEdgeStartY = event.y
+                        }
+                    } else {
+                        val isOnDock = if (rightHandDrive) {
+                            event.x >= view.width * 0.75f
+                        } else {
+                            event.x <= view.width * 0.25f
+                        }
+                        if (isOnDock) {
+                            dockCloseSwipeActive = true
+                            dockCloseStartX = event.x
+                            dockCloseStartY = event.y
+                        }
+                        mainHandler.removeCallbacks(hideDockRunnable)
+                        mainHandler.postDelayed(hideDockRunnable, 5000L)
+                    }
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (dockGestureIntercepted) {
+                        return true
+                    }
+                    if (dockEdgeSwipeActive) {
+                        val dx = event.x - dockEdgeStartX
+                        val dy = Math.abs(event.y - dockEdgeStartY)
+                        val swipedToOpen = if (rightHandDrive) {
+                            dx <= -dp(36) && -dx > dy * 1.2f
+                        } else {
+                            dx >= dp(36) && dx > dy * 1.2f
+                        }
+                        if (swipedToOpen) {
+                            dockEdgeSwipeActive = false
+                            dockGestureIntercepted = true
+                            revealDockTemporarily(view)
+                            return true
+                        }
+                    } else if (dockCloseSwipeActive) {
+                        val dx = event.x - dockCloseStartX
+                        val dy = Math.abs(event.y - dockCloseStartY)
+                        val swipedToClose = if (rightHandDrive) {
+                            dx >= dp(36) && dx > dy * 1.2f
+                        } else {
+                            dx <= -dp(36) && -dx > dy * 1.2f
+                        }
+                        if (swipedToClose) {
+                            dockCloseSwipeActive = false
+                            dockGestureIntercepted = true
+                            hideDock(view)
+                            return true
+                        }
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    dockEdgeSwipeActive = false
+                    dockCloseSwipeActive = false
+                    if (dockGestureIntercepted) {
+                        dockGestureIntercepted = false
+                        return true
+                    }
+                }
+            }
+        }
+
         val content = contentRect(view.width, view.height)
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             touchOutsideContent = !content.contains(event.x, event.y)
@@ -5381,7 +5556,15 @@ internal object CarPlayBackgroundSession {
             if (action != null) { stopping = true; stopWaiters.add(completion) }
         }
         if (action == null) { completion(); return }
-        action.invoke {
+        try {
+            action.invoke {
+                val callbacks = synchronized(this) {
+                    stopping = false
+                    stopWaiters.toList().also { stopWaiters.clear() }
+                }
+                callbacks.forEach { it() }
+            }
+        } catch (t: Throwable) {
             val callbacks = synchronized(this) {
                 stopping = false
                 stopWaiters.toList().also { stopWaiters.clear() }

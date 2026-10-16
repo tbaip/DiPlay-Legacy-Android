@@ -87,22 +87,66 @@ class IphoneUsbBringupTest {
             }
         }
 
+    @Test fun multiUsbPortScenario_dashcamIgnoredAndIphoneDiscoveredAndDetached() {
+        val dashcam = Shadow.newInstanceOf(UsbDevice::class.java).also {
+            Shadow.extract<Device>(it).apply { vid = 0x1f3a; pid = 0x1000 }
+        }
+        val iphone = Shadow.newInstanceOf(UsbDevice::class.java).also {
+            Shadow.extract<Device>(it).apply { vid = 0x05ac; pid = 0x12a8 }
+        }
+
+        val managerState = Shadow.extract<Manager>(manager)
+        managerState.devices = mapOf(
+            "dashcam_port1" to dashcam,
+            "iphone_port2" to iphone,
+        )
+
+        val host = IphoneUsbHost(
+            RuntimeEnvironment.getApplication(), manager, IphoneUsbMatcher.appleVendor(),
+        )
+
+        val discovered = host.discover()
+        assertEquals("Must discover only the iPhone and ignore the dashcam", 1, discovered.size)
+        assertEquals(0x05ac, discovered[0].vendorId)
+        assertEquals(0x12a8, discovered[0].productId)
+
+        val attachDashcamIntent = android.content.Intent(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+            .putExtra(UsbManager.EXTRA_DEVICE, dashcam)
+        assertNull("Dashcam attach must be ignored", host.parseAttachedDevice(attachDashcamIntent))
+
+        val attachIphoneIntent = android.content.Intent(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+            .putExtra(UsbManager.EXTRA_DEVICE, iphone)
+        assertNotNull("iPhone attach must be recognized", host.parseAttachedDevice(attachIphoneIntent))
+
+        val detachDashcamIntent = android.content.Intent(UsbManager.ACTION_USB_DEVICE_DETACHED)
+            .putExtra(UsbManager.EXTRA_DEVICE, dashcam)
+        assertNull("Dashcam detach must be ignored", host.parseDetachedDevice(detachDashcamIntent))
+
+        val detachIphoneIntent = android.content.Intent(UsbManager.ACTION_USB_DEVICE_DETACHED)
+            .putExtra(UsbManager.EXTRA_DEVICE, iphone)
+        assertNotNull("iPhone detach must be recognized", host.parseDetachedDevice(detachIphoneIntent))
+    }
+
     @Implements(UsbManager::class)
     class Manager {
         var throwLinkageError = false
+        var devices: Map<String, UsbDevice> = emptyMap()
         lateinit var connection: UsbDeviceConnection
         @Implementation fun hasPermission(device: UsbDevice): Boolean = true
         @Implementation fun openDevice(device: UsbDevice): UsbDeviceConnection {
             if (throwLinkageError) throw UnsatisfiedLinkError("dlopen failed: library not found")
             return connection
         }
+        @Implementation fun getDeviceList(): java.util.HashMap<String, UsbDevice> = java.util.HashMap(devices)
     }
 
     @Implements(UsbDevice::class)
     class Device {
+        var vid: Int = 0x05ac
+        var pid: Int = 0x12ab
         lateinit var configuration: UsbConfiguration
-        @Implementation fun getVendorId(): Int = 0x05ac
-        @Implementation fun getProductId(): Int = 0x12ab
+        @Implementation fun getVendorId(): Int = vid
+        @Implementation fun getProductId(): Int = pid
         @Implementation fun getConfigurationCount(): Int = 1
         @Implementation fun getConfiguration(index: Int): UsbConfiguration = configuration
     }

@@ -69,4 +69,29 @@ class Iap2WirelessPrematureCloseTest {
             runCatching { link.close() }
         }
     }
+
+    @Test fun closeWhenUnderlyingThrowsDoesNotCreateMutualSuppressionCycle() {
+        val transport = object : BlockingDuplexByteStream {
+            override fun send(data: ByteArray) = Unit
+            override fun recv(maxBytes: Int, timeoutMillis: Long): ByteArray =
+                throw IOException("RFCOMM read failure")
+            override fun close() {
+                throw IOException("RFCOMM socket close failed")
+            }
+        }
+        val link = Iap2LinkChannel.openWireless(transport)
+        try {
+            assertThrows(IOException::class.java) { link.awaitReady(2000L) }
+        } catch (_: Throwable) {}
+        val closeEx = assertThrows(IOException::class.java) { link.close() }
+        val seen = HashSet<Throwable>()
+        fun checkAcyclic(t: Throwable) {
+            assertTrue("Cycle detected in suppressed exceptions: $t", seen.add(t))
+            for (s in t.suppressed) {
+                checkAcyclic(s)
+            }
+            seen.remove(t)
+        }
+        checkAcyclic(closeEx)
+    }
 }

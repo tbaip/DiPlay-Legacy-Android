@@ -19,7 +19,7 @@ object BluetoothCompat {
     @SuppressLint("MissingPermission")
     @Suppress("DEPRECATION")
     fun getAdapter(context: Context): BluetoothAdapter? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+        return if (realSdkInt() >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
             BluetoothCompatApi18.getAdapter(context)
         } else {
             BluetoothAdapter.getDefaultAdapter()
@@ -28,7 +28,7 @@ object BluetoothCompat {
 
     @SuppressLint("MissingPermission")
     fun getConnectedGattDevices(context: Context): List<BluetoothDevice> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+        return if (realSdkInt() >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
             BluetoothCompatApi18.getConnectedGattDevices(context)
         } else {
             emptyList()

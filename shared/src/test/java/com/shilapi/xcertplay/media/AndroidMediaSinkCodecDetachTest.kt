@@ -46,6 +46,8 @@ class AndroidMediaSinkCodecDetachTest {
 
     private lateinit var codec: GateCodec
     private val sinks = ArrayList<AndroidMediaSink>()
+    // Keep test-owned surfaces alive until codec workers exit, then release both native resources.
+    private val testSurfaces = ArrayList<Pair<Surface, SurfaceTexture>>()
     private val uncaught = ConcurrentLinkedQueue<Throwable>()
     private var previousHandler: Thread.UncaughtExceptionHandler? = null
 
@@ -95,13 +97,21 @@ class AndroidMediaSinkCodecDetachTest {
     }
 
     @After fun tearDown() {
-        codec.release()
-        sinks.forEach { sink ->
-            sink.close()
-            sink.awaitVideoReleased(5_000)
+        try {
+            codec.release()
+            sinks.forEach(AndroidMediaSink::close)
+            sinks.forEach { sink ->
+                assertTrue("video decoder worker must exit before its test surface is released", sink.awaitVideoReleased(5_000))
+            }
+        } finally {
+            // The fixture, not the sink, owns these surfaces (including barrier() surfaces).
+            testSurfaces.forEach { (surface, texture) ->
+                surface.release()
+                texture.release()
+            }
+            ShadowMediaCodec.clearCodecs()
+            Thread.setDefaultUncaughtExceptionHandler(previousHandler)
         }
-        ShadowMediaCodec.clearCodecs()
-        Thread.setDefaultUncaughtExceptionHandler(previousHandler)
     }
 
     @Test fun smoothVideoParksTheMainDecoderOnAConsumerDrainedOffTheMainThread() {
@@ -432,7 +442,10 @@ class AndroidMediaSinkCodecDetachTest {
 
     // --- helpers ---
 
-    private fun newSurface() = Surface(SurfaceTexture(0))
+    private fun newSurface(): Surface {
+        val texture = SurfaceTexture(0)
+        return Surface(texture).also { testSurfaces += it to texture }
+    }
 
     /** A smooth-video sink, as the host makes it: no default surface, the main stream configured on [surface]. */
     private fun configuredSink(surface: Surface): AndroidMediaSink {

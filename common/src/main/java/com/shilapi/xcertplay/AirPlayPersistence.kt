@@ -98,6 +98,7 @@ object AirPlayPersistence {
     private const val KEY_RIGHT_HAND_DRIVE = "right_hand_drive"
     private const val KEY_HIDE_TOP_BAR = "hide_top_bar"
     private const val KEY_HIDE_BOTTOM_BAR = "hide_bottom_bar"
+    private const val KEY_DOCK_AUTO_HIDE = "dock_auto_hide"
     private const val KEY_HARMAN_FULLSCREEN = "harman_fullscreen"
     private const val KEY_SAFE_AREA_DRAW_OUTSIDE = "safe_area_draw_outside"
     private const val KEY_ADAPT_PIP_RESOLUTION = "adapt_pip_resolution"
@@ -441,9 +442,14 @@ object AirPlayPersistence {
             .apply()
     }
 
+    /**
+     * Session log output switch (issue #186). Defaults to true so existing behavior is
+     * unchanged: the key existed before but was never read. [LoggingGate] caches it per
+     * process, so toggling takes effect after restarting the app.
+     */
     fun loadDebugLogsEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_DEBUG_LOGS_ENABLED, false)
+            .getBoolean(KEY_DEBUG_LOGS_ENABLED, true)
 
     fun saveDebugLogsEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
@@ -908,6 +914,16 @@ object AirPlayPersistence {
     fun saveHarmanFullscreen(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_HARMAN_FULLSCREEN, enabled)
+            .apply()
+    }
+
+    fun loadDockAutoHide(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_DOCK_AUTO_HIDE, false)
+
+    fun saveDockAutoHide(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_DOCK_AUTO_HIDE, enabled)
             .apply()
     }
 

@@ -605,6 +605,8 @@
     <string name="carplay_dock_automatic">Automático</string>
     <string name="carplay_dock_driver_side">Lado del conductor</string>
     <string name="carplay_dock_bottom">Abajo</string>
+    <string name="settings_dock_auto_hide">Ocultar base automáticamente</string>
+    <string name="settings_dock_auto_hide_description">Área de aplicación a pantalla completa; desliza desde el borde para mostrar la base</string>
     <string name="carplay_dock_hint">Dónde muestra CarPlay sus apps, la hora y el estado. Entre «Lado del conductor» y «Abajo» cambia al instante; «Automático» deja la elección al iPhone y se aplica tras reconectar.</string>
     <string name="split_screen_areas">CarPlay en la pantalla dividida</string>
     <string name="split_screen_areas_description">Cuando la unidad muestra DiPlay en pantalla dividida, CarPlay se redibuja para esa ventana en lugar de reducirse con franjas negras, y vuelve a pantalla completa sin reconectar. El tamaño de la ventana se aprende la primera vez, así que desde la siguiente conexión la imagen encaja exactamente. Con el dock en Automático, CarPlay lo coloca abajo. Se aplica en la próxima conexión.</string>
@@ -659,7 +661,20 @@
     <string name="settings_car_bluetooth_mac_dialog_message">Introduce la dirección MAC de Bluetooth del coche (ej. AA:BB:CC:DD:EE:FF). Búscala en iPhone Ajustes → Bluetooth → (i) o en los ajustes del coche.</string>
     <string name="settings_car_bluetooth_mac_clear">Automático / Borrar</string>
     <string name="settings_bluetooth_diagnostic">Diagnóstico de Bluetooth</string>
+    <string name="settings_log_output_title">Salida de registro</string>
+    <string name="settings_log_output_subtitle">Desactívela para reducir la carga en las unidades principales antiguas. Tiene efecto tras reiniciar la aplicación; vuelva a activarla cuando necesite diagnosticar un problema.</string>
     <string name="settings_car_bluetooth_mac_invalid">Introduce una dirección MAC hexadecimal válida de 12 dígitos.</string>
     <string name="settings_harman_fullscreen_experimental">Pantalla completa Harman (experimental)</string>
     <string name="settings_harman_fullscreen_experimental_description">Permite que CarPlay ocupe el panel lateral original en unidades Harman compatibles. Se aplica al abrir de nuevo la ventana de CarPlay; otros firmwares podrían mostrarse incorrectamente.</string>
+    <string name="settings_usb_bluetooth_title">Bluetooth USB externo</string>
+    <string name="settings_usb_bluetooth_subtitle">Pila de hardware directa para adaptadores USB Bluetooth externos (ej. UGREEN CM591/CM390, Realtek, Actions ATS2851) para CarPlay inalámbrico.</string>
+    <string name="settings_usb_bluetooth_not_detected">No se detectó ningún adaptador Bluetooth USB externo — conecta uno compatible.</string>
+    <string name="settings_usb_bluetooth_detected">Detectado: %1$s</string>
+    <string name="settings_usb_bluetooth_needs_permission">Se requiere permiso USB — toca para solicitarlo</string>
+    <string name="settings_usb_bluetooth_request_permission">Conceder permiso USB</string>
+    <string name="settings_usb_bluetooth_start">Iniciar servicio y modo emparejamiento</string>
+    <string name="settings_usb_bluetooth_stop">Detener Bluetooth USB</string>
+    <string name="settings_usb_bluetooth_running">En ejecución · MAC: %1$s · Nombre: %2$s</string>
+    <string name="settings_usb_bluetooth_self_test">Autodiagnóstico del hardware Bluetooth</string>
+    <string name="settings_usb_bluetooth_testing">Ejecutando autodiagnóstico…</string>
 </resources>

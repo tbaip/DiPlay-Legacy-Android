@@ -139,6 +139,11 @@ object AirPlayCrypto {
             platformState.get()?.implementation = "BouncyCastle"
         }
 
+    /** Dynamically detected whether the platform Cipher supports updateAAD(byte[]). */
+    internal var hasUpdateAAD: Boolean = runCatching {
+        Cipher::class.java.getMethod("updateAAD", ByteArray::class.java) != null
+    }.getOrDefault(false)
+
     /**
      * Null when the platform has no ChaCha20-Poly1305 or refuses this use of it (a desktop JDK rejects
      * reusing a key and nonce for encryption, which tests do); a failed tag still throws.
@@ -152,10 +157,11 @@ object AirPlayCrypto {
         useDirectBuffers: Boolean = Build.VERSION.SDK_INT >= 31,
     ): ByteArray? {
         val state = platformState.get() ?: return null
-        // Cipher.updateAAD() only exists on API 19+; calling it on Android 4.2/4.3
-        // throws NoSuchMethodError and kills the calling thread (#170, #178).
-        // Use the bundled BouncyCastle ChaCha20-Poly1305 for AAD there.
-        if (aad.isNotEmpty() && Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) return null
+        // Cipher.updateAAD() only exists on API 19+ and may be missing on vendor-stripped or
+        // pseudo-4.4 ROMs (e.g. Android 4.2/4.3 retrofits, #170, #178, #189).
+        // If AAD is present and the platform Cipher does not have updateAAD(),
+        // immediately fall back to the bundled BouncyCastle ChaCha20-Poly1305.
+        if (aad.isNotEmpty() && (!hasUpdateAAD || Build.VERSION.SDK_INT in 1 until Build.VERSION_CODES.KITKAT)) return null
         return try {
             val cipher = state.cipher
             cipher.init(mode, SecretKeySpec(key, "ChaCha20"), IvParameterSpec(nonce))
@@ -177,9 +183,10 @@ object AirPlayCrypto {
             // and the app crashes at startup. Match by class name instead.
             if (failure.javaClass.name == "javax.crypto.AEADBadTagException") throw failure
             null
-        } catch (failure: LinkageError) {
-            // Defensive: a missing platform crypto API (e.g. updateAAD on API < 19)
-            // degrades to the BouncyCastle fallback instead of killing the thread.
+        } catch (failure: Throwable) {
+            // Defensive: a missing platform crypto API (e.g. updateAAD, missing provider methods,
+            // or vendor ROM LinkageError / NoSuchMethodError) degrades to BouncyCastle fallback.
+            if (failure.javaClass.name == "javax.crypto.AEADBadTagException") throw failure
             null
         }
     }
